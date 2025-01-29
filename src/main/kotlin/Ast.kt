@@ -49,3 +49,9 @@ sealed class Expression {
      */
     data class Add(val left: Expression, val right: Expression) : Expression()
 }
+
+object Keywords {
+    const val VAR = "var"
+    const val PRINT = "print"
+    const val PLUS = "+"
+}
