@@ -146,6 +146,11 @@ fun generateExpression(
             generateExpression(expr.right, mv, varIndexMap)
             mv.visitInsn(Opcodes.IADD)
         }
+        is Expression.Sub -> {
+            generateExpression(expr.left, mv, varIndexMap)
+            generateExpression(expr.right, mv, varIndexMap)
+            mv.visitInsn(Opcodes.ISUB)
+        }
     }
 }
 
@@ -161,6 +166,7 @@ fun main() {
         var z = x + y
         print x
         print y + x
+        print y - x
     """.trimIndent()
 
     // 1. ソースコードをパースしてASTを得る

@@ -44,7 +44,7 @@ fun parseLine(line: String): Statement {
  */
 fun parseExpression(exprStr: String): Expression {
     // "a + b" のような単純形をサポート
-    val parts = exprStr.split(Keywords.PLUS).map { it.trim() }
+    val parts = exprStr.split(Keywords.PLUS, Keywords.MINUS).map { it.trim() }
     return when (parts.size) {
         1 -> {
             // 単項
@@ -54,7 +54,12 @@ fun parseExpression(exprStr: String): Expression {
             // a + b
             val left = parseTerm(parts[0])
             val right = parseTerm(parts[1])
-            Expression.Add(left, right)
+            var isPlus = exprStr.contains(Keywords.PLUS)
+            if (isPlus) {
+                return Expression.Add(left, right)
+            }
+            //var isMinus = parts.contains(Keywords.MINUS)
+            return Expression.Sub(left, right)
         }
         else -> {
             throw IllegalArgumentException("サポートされていない式です(複数の +): $exprStr")

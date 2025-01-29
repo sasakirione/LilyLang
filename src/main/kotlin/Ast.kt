@@ -48,6 +48,11 @@ sealed class Expression {
      * 加算
      */
     data class Add(val left: Expression, val right: Expression) : Expression()
+
+    /**
+     * 減産
+     */
+    data class Sub(val left: Expression, val right: Expression) : Expression()
 }
 
 object Keywords {
