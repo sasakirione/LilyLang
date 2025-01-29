@@ -70,6 +70,11 @@ fun compileToBytecode(program: Program, className: String): ByteArray {
     for (stmt in program.statements) {
         when (stmt) {
             is Statement.VarDecl -> {
+                var isExist = varIndexMap.keys.any{ it == stmt.varName }
+                if (isExist) {
+                    error("変数の再定義はできません: ${stmt.varName}")
+                }
+
                 // expr をスタックに積む
                 generateExpression(stmt.expr, mv, varIndexMap)
 
@@ -130,13 +135,13 @@ fun generateExpression(
             mv.visitLdcInsn(expr.value)
         }
         is Expression.VariableRef -> {
-            // 変数をILOAD
+            // 変数をLOAD
             val index = varIndexMap[expr.name]
                 ?: error("未定義の変数: ${expr.name}")
             mv.visitVarInsn(Opcodes.ILOAD, index)
         }
         is Expression.Add -> {
-            // left, right を生成後、IADD
+            // left, right を生成後、ADD
             generateExpression(expr.left, mv, varIndexMap)
             generateExpression(expr.right, mv, varIndexMap)
             mv.visitInsn(Opcodes.IADD)
@@ -152,8 +157,10 @@ fun main() {
     // サンプルの小さなプログラム
     val sampleSource = """
         var x = 10
+        var y = 20
+        var z = x + y
         print x
-        print x + 20
+        print y + x
     """.trimIndent()
 
     // 1. ソースコードをパースしてASTを得る
