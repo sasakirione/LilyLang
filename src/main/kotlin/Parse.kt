@@ -19,7 +19,7 @@ fun parseLine(line: String): Statement {
         line.startsWith(Keywords.VAR) -> {
             // 例: "var x = 10" -> varName="x", expr="10"
             val afterVar = line.removePrefix(Keywords.VAR).trim()
-            val parts = afterVar.split("=", limit = 2)
+            val parts = afterVar.split(Keywords.EQUALS, limit = 2)
             require(parts.size == 2) { "構文エラー: var ステートメントに '=' がありません: $line" }
             val varName = parts[0].trim()
             val exprStr = parts[1].trim()

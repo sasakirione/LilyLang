@@ -54,4 +54,6 @@ object Keywords {
     const val VAR = "var"
     const val PRINT = "print"
     const val PLUS = "+"
+    const val MINUS = "-"
+    const val EQUALS = "="
 }
