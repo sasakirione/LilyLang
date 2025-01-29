@@ -105,6 +105,15 @@ fun compileToBytecode(program: Program, className: String): ByteArray {
                     false
                 )
             }
+
+            is Statement.VarAssign -> {
+                val varIndex = varIndexMap[stmt.varName] ?:
+                    error("変数が宣言されていません: ${stmt.varName}")
+
+                generateExpression(stmt.expr, mv, varIndexMap)
+
+                mv.visitVarInsn(Opcodes.ISTORE, varIndex)
+            }
         }
     }
 
@@ -164,7 +173,8 @@ fun main() {
         var x = 10
         var y = 20
         var z = x + y
-        print x
+        z = 3
+        print z
         print y + x
         print y - x
     """.trimIndent()

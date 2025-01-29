@@ -33,7 +33,9 @@ fun parseLine(line: String): Statement {
         }
 
         else -> {
-            throw IllegalArgumentException("サポートされていない文です: $line")
+            // 例: "x = 10" -> parts[0]="x", parts[1]="10"
+            val parts = line.split(Keywords.EQUALS).map { it.trim() }
+            Statement.VarAssign(parts[0], parseExpression(parts[1]))
         }
     }
 }

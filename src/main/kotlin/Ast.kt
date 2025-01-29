@@ -22,6 +22,11 @@ sealed class Statement {
     data class VarDecl(val varName: String, val expr: Expression) : Statement()
 
     /**
+     * 変数再代入
+     */
+    data class VarAssign(val varName: String, val expr: Expression) : Statement()
+
+    /**
      * 標準出力
      */
     data class Print(val expr: Expression) : Statement()
