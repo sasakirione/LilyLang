@@ -1,5 +1,7 @@
 package com.sasakirione
 
+import kotlin.collections.ArrayDeque
+
 /**
  * 与えられたソースコード文字列を行ごとに読み込み、Program (AST) を返す簡易パーサ。
  */
@@ -45,28 +47,42 @@ fun parseLine(line: String): Statement {
  * "a + b" か、単項 (整数 or 変数名) だけをサポート。
  */
 fun parseExpression(exprStr: String): Expression {
-    // "a + b" のような単純形をサポート
-    val parts = exprStr.split(Keywords.PLUS, Keywords.MINUS).map { it.trim() }
-    return when (parts.size) {
-        1 -> {
-            // 単項
-            parseTerm(parts[0])
+    // 演算子とタームごととにリスト化する
+    val elements = splitExpressionText(exprStr)
+    val valueStack = ArrayDeque<Expression>()
+    val operatorStack = ArrayDeque<String>()
+    for (element in elements) {
+        val isOperator = isOperator(element)
+        if (isOperator) {
+            val op1 = element
+            // val op2 = operatorStack.lastOrNull()
+            // 割り算かけ算実装時はここにいろいろ
+            operatorStack.add(op1)
+            continue
         }
-        2 -> {
-            // a + b
-            val left = parseTerm(parts[0])
-            val right = parseTerm(parts[1])
-            var isPlus = exprStr.contains(Keywords.PLUS)
-            if (isPlus) {
-                return Expression.Add(left, right)
-            }
-            //var isMinus = parts.contains(Keywords.MINUS)
-            return Expression.Sub(left, right)
-        }
-        else -> {
-            throw IllegalArgumentException("サポートされていない式です(複数の +): $exprStr")
-        }
+        valueStack.add(parseTerm(element))
     }
+    while (operatorStack.isNotEmpty()) {
+        val op1 = operatorStack.removeLast()
+        val v1 = valueStack.removeLast()
+        val v2 = valueStack.removeLast()
+        val res = when (op1) {
+            Keywords.PLUS -> Expression.Add(v2, v1)
+            Keywords.MINUS -> Expression.Sub(v2, v1)
+            else -> {error("存在しない演算子です: $op1")}
+        }
+        valueStack.add(res)
+    }
+    return valueStack.last()
+}
+
+private fun isOperator(str: String): Boolean {
+    return str == Keywords.PLUS || str == Keywords.MINUS
+}
+
+private fun splitExpressionText(exprStr: String): List<String> {
+    val regex = Regex("""\d+|\w+|[${Regex.escape(Keywords.PLUS + Keywords.MINUS)}]""")
+    return regex.findAll(exprStr).map { it.value.trim() }.toList()
 }
 
 /**

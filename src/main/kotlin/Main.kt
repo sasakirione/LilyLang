@@ -172,7 +172,7 @@ fun main() {
     val sampleSource = """
         var x = 10
         var y = 20
-        var z = x + y
+        var z = x + y - 10 + 100
         z = 3
         print z
         print y + x
