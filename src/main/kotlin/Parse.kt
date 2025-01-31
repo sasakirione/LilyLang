@@ -55,7 +55,15 @@ fun parseExpression(exprStr: String): Expression {
         val isOperator = isOperator(element)
         if (isOperator) {
             val op1 = element
-            // val op2 = operatorStack.lastOrNull()
+            var op2 = operatorStack.lastOrNull()
+            while (op2 != null && (getOperatorPrecedence(op1) <= getOperatorPrecedence(op2))) {
+                val op2Pop = operatorStack.removeLast()
+                val v2 = valueStack.removeLast()
+                val v1 = valueStack.removeLast()
+                val res = getExpression(op2Pop, v2, v1)
+                valueStack.add(res)
+                op2 = operatorStack.lastOrNull()
+            }
             // 割り算かけ算実装時はここにいろいろ
             operatorStack.add(op1)
             continue
@@ -66,22 +74,44 @@ fun parseExpression(exprStr: String): Expression {
         val op1 = operatorStack.removeLast()
         val v1 = valueStack.removeLast()
         val v2 = valueStack.removeLast()
-        val res = when (op1) {
-            Keywords.PLUS -> Expression.Add(v2, v1)
-            Keywords.MINUS -> Expression.Sub(v2, v1)
-            else -> {error("存在しない演算子です: $op1")}
-        }
+        val res = getExpression(op1, v2, v1)
         valueStack.add(res)
     }
     return valueStack.last()
 }
 
+private fun getExpression(
+    op1: String,
+    v2: Expression,
+    v1: Expression
+): Expression {
+    val res = when (op1) {
+        Keywords.PLUS -> Expression.Add(v2, v1)
+        Keywords.MINUS -> Expression.Sub(v2, v1)
+        Keywords.MOD -> Expression.Mod(v2, v1)
+        Keywords.MUL -> Expression.Mul(v2, v1)
+        Keywords.DIV -> Expression.Div(v2, v1)
+        else -> {
+            error("存在しない演算子です: $op1")
+        }
+    }
+    return res
+}
+
 private fun isOperator(str: String): Boolean {
-    return str == Keywords.PLUS || str == Keywords.MINUS
+    return str == Keywords.PLUS || str == Keywords.MINUS || str == Keywords.MOD || str == Keywords.MUL || str == Keywords.DIV
+}
+
+private fun getOperatorPrecedence(op: String): Int {
+    return when (op) {
+        Keywords.PLUS, Keywords.MINUS -> 1
+        Keywords.MOD, Keywords.MUL, Keywords.DIV -> 2
+        else -> 0
+    }
 }
 
 private fun splitExpressionText(exprStr: String): List<String> {
-    val regex = Regex("""\d+|\w+|[${Regex.escape(Keywords.PLUS + Keywords.MINUS)}]""")
+    val regex = Regex("""\d+|\w+|[${Regex.escape(Keywords.PLUS + Keywords.MINUS + Keywords.MOD + Keywords.MUL + Keywords.DIV)}]""")
     return regex.findAll(exprStr).map { it.value.trim() }.toList()
 }
 

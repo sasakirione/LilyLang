@@ -160,6 +160,21 @@ fun generateExpression(
             generateExpression(expr.right, mv, varIndexMap)
             mv.visitInsn(Opcodes.ISUB)
         }
+        is Expression.Mul -> {
+            generateExpression(expr.left, mv, varIndexMap)
+            generateExpression(expr.right, mv, varIndexMap)
+            mv.visitInsn(Opcodes.IMUL)
+        }
+        is Expression.Div -> {
+            generateExpression(expr.left, mv, varIndexMap)
+            generateExpression(expr.right, mv, varIndexMap)
+            mv.visitInsn(Opcodes.IDIV)
+        }
+        is Expression.Mod -> {
+            generateExpression(expr.left, mv, varIndexMap)
+            generateExpression(expr.right, mv, varIndexMap)
+            mv.visitInsn(Opcodes.IREM)
+        }
     }
 }
 
@@ -173,6 +188,10 @@ fun main() {
         var x = 10
         var y = 20
         var z = x + y - 10 + 100
+        var exp1 = x * y
+        var exp2 = 10 + x * y - 5
+        var exp3 = 32 + x / y * z
+        var exp4 = exp1 % 3
         z = 3
         print z
         print y + x

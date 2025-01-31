@@ -55,9 +55,24 @@ sealed class Expression {
     data class Add(val left: Expression, val right: Expression) : Expression()
 
     /**
-     * 減産
+     * 減算
      */
     data class Sub(val left: Expression, val right: Expression) : Expression()
+
+    /**
+     * 乗算
+     */
+    data class Mul(val left: Expression, val right: Expression) : Expression()
+
+    /**
+     * 除算
+     */
+    data class Div(val left: Expression, val right: Expression) : Expression()
+
+    /**
+     * mod
+     */
+    data class Mod(val left: Expression, val right: Expression) : Expression()
 }
 
 object Keywords {
@@ -65,5 +80,8 @@ object Keywords {
     const val PRINT = "print"
     const val PLUS = "+"
     const val MINUS = "-"
+    const val MUL = "*"
+    const val DIV = "/"
+    const val MOD = "%"
     const val EQUALS = "="
 }
