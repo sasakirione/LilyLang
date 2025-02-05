@@ -9,6 +9,8 @@ import java.io.FileOutputStream
  *  3) バイトコード生成 (AST -> .class)
  * ============================== */
 
+data class VariableDetail(val type: String, val index: Int, val name: String)
+
 /**
  * AST (Program) をもとに、バイトコード(.class)を生成して返す。
  *
@@ -63,14 +65,14 @@ fun compileToBytecode(program: Program, className: String): ByteArray {
 
     // 変数名 -> ローカル変数番号 のマッピング
     // main のローカル変数 0 は args 用
-    val varIndexMap = mutableMapOf<String, Int>()
+    val varIndexMap = mutableListOf<VariableDetail>()
     var nextLocalIndex = 1
 
     // AST の文を順にコード生成
     for (stmt in program.statements) {
         when (stmt) {
             is Statement.VarDecl -> {
-                var isExist = varIndexMap.keys.any{ it == stmt.varName }
+                var isExist = varIndexMap.any{ it.name == stmt.varName }
                 if (isExist) {
                     error("変数の再定義はできません: ${stmt.varName}")
                 }
@@ -79,15 +81,15 @@ fun compileToBytecode(program: Program, className: String): ByteArray {
                 generateExpression(stmt.expr, mv, varIndexMap)
 
                 // スタックトップにある int をローカル変数に格納
-                varIndexMap[stmt.varName] = nextLocalIndex
+                varIndexMap.add(VariableDetail("int", nextLocalIndex, stmt.varName))
                 when (stmt.expr) {
                     is Expression.List -> {
                         // Expression.List の場合は ArrayList インスタンス（オブジェクト参照）がスタックにあるので
-                        // ASTORE 命令を使用する
+                        // A-STORE 命令を使用する
                         mv.visitVarInsn(Opcodes.ASTORE, nextLocalIndex)
                     }
                     else -> {
-                        // それ以外（整数など）の場合は ISTORE 命令を使用する
+                        // それ以外（整数など）の場合は I-STORE 命令を使用する
                         mv.visitVarInsn(Opcodes.ISTORE, nextLocalIndex)
                     }
                 }
@@ -117,12 +119,12 @@ fun compileToBytecode(program: Program, className: String): ByteArray {
             }
 
             is Statement.VarAssign -> {
-                val varIndex = varIndexMap[stmt.varName] ?:
+                val varDetail = varIndexMap.firstOrNull { it.name == stmt.varName } ?:
                     error("変数が宣言されていません: ${stmt.varName}")
 
                 generateExpression(stmt.expr, mv, varIndexMap)
 
-                mv.visitVarInsn(Opcodes.ISTORE, varIndex)
+                mv.visitVarInsn(Opcodes.ISTORE, varDetail.index)
             }
         }
     }
@@ -146,7 +148,7 @@ fun compileToBytecode(program: Program, className: String): ByteArray {
 fun generateExpression(
     expr: Expression,
     mv: MethodVisitor,
-    varIndexMap: Map<String, Int>
+    varIndexMap: MutableList<VariableDetail>
 ) {
     when (expr) {
         is Expression.IntLiteral -> {
@@ -155,9 +157,9 @@ fun generateExpression(
         }
         is Expression.VariableRef -> {
             // 変数をLOAD
-            val index = varIndexMap[expr.name]
-                ?: error("未定義の変数: ${expr.name}")
-            mv.visitVarInsn(Opcodes.ILOAD, index)
+            val detail = varIndexMap.firstOrNull { it.name == expr.name } ?:
+                error("未定義の変数: ${expr.name}")
+            mv.visitVarInsn(Opcodes.ILOAD, detail.index)
         }
         is Expression.Add -> {
             // left, right を生成後、ADD
