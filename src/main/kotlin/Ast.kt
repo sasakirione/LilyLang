@@ -73,6 +73,11 @@ sealed class Expression {
      * mod
      */
     data class Mod(val left: Expression, val right: Expression) : Expression()
+
+    /**
+     * リスト
+     */
+    data class List(val type: String): Expression()
 }
 
 object Keywords {
@@ -84,4 +89,7 @@ object Keywords {
     const val DIV = "/"
     const val MOD = "%"
     const val EQUALS = "="
+    const val LESS_THAN = "<"
+    const val GREATER_THAN = ">"
+    const val LIST = "list"
 }

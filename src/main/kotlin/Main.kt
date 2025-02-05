@@ -20,7 +20,7 @@ fun compileToBytecode(program: Program, className: String): ByteArray {
 
     // クラス定義: public class <className> extends Object
     cw.visit(
-        Opcodes.V1_8,
+        Opcodes.V24,
         Opcodes.ACC_PUBLIC,
         className,
         null,
@@ -80,7 +80,17 @@ fun compileToBytecode(program: Program, className: String): ByteArray {
 
                 // スタックトップにある int をローカル変数に格納
                 varIndexMap[stmt.varName] = nextLocalIndex
-                mv.visitVarInsn(Opcodes.ISTORE, nextLocalIndex)
+                when (stmt.expr) {
+                    is Expression.List -> {
+                        // Expression.List の場合は ArrayList インスタンス（オブジェクト参照）がスタックにあるので
+                        // ASTORE 命令を使用する
+                        mv.visitVarInsn(Opcodes.ASTORE, nextLocalIndex)
+                    }
+                    else -> {
+                        // それ以外（整数など）の場合は ISTORE 命令を使用する
+                        mv.visitVarInsn(Opcodes.ISTORE, nextLocalIndex)
+                    }
+                }
                 nextLocalIndex++
             }
 
@@ -175,6 +185,18 @@ fun generateExpression(
             generateExpression(expr.right, mv, varIndexMap)
             mv.visitInsn(Opcodes.IREM)
         }
+
+        is Expression.List -> {
+            mv.visitTypeInsn(Opcodes.NEW, "java/util/ArrayList")
+            mv.visitInsn(Opcodes.DUP) // DUP命令
+            mv.visitMethodInsn(
+                Opcodes.INVOKESPECIAL,
+                "java/util/ArrayList",
+                "<init>",
+                "()V",
+                false
+            )
+        }
     }
 }
 
@@ -192,6 +214,7 @@ fun main() {
         var exp2 = 10 + x * y - 5
         var exp3 = 32 + x / y * z
         var exp4 = exp1 % 3
+        var testList = list()
         z = 3
         print z
         print y + x

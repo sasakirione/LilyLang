@@ -116,13 +116,15 @@ private fun splitExpressionText(exprStr: String): List<String> {
 }
 
 /**
- * 単項をパース。整数リテラルか変数参照のどちらか。
+ * 単項をパース。
  */
 fun parseTerm(term: String): Expression {
-    // 整数としてパースを試みる
     val intValue = term.toIntOrNull()
+    val isList = term.startsWith(Keywords.LIST)
     return if (intValue != null) {
         Expression.IntLiteral(intValue)
+    } else if (isList) {
+        Expression.List("Object")
     } else {
         // 変数参照
         Expression.VariableRef(term)
