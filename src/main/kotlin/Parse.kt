@@ -3,7 +3,10 @@ package com.sasakirione
 import kotlin.collections.ArrayDeque
 
 /**
- * 与えられたソースコード文字列を行ごとに読み込み、Program (AST) を返す簡易パーサ。
+ * ソースコードを解析し、AST（抽象構文木）の`Program`オブジェクトを生成する。
+ *
+ * @param source ソースコード全体を表す文字列
+ * @return 解析された`Program`オブジェクト
  */
 fun parseProgram(source: String): Program {
     // 改行で行に分割 & 前後の空白除去 & 空行除去
@@ -14,7 +17,10 @@ fun parseProgram(source: String): Program {
 }
 
 /**
- * 1行をパースして Statement を作る。
+ * 指定された文字列を解析し、対応するStatementオブジェクトを生成する。
+ *
+ * @param line 処理する文字列(ステートメント)
+ * @return 解析されたStatementオブジェクト
  */
 fun parseLine(line: String): Statement {
     return when {
@@ -42,9 +48,12 @@ fun parseLine(line: String): Statement {
     }
 }
 
+
 /**
- * 簡易的な式パーサ。
- * "a + b" か、単項 (整数 or 変数名) だけをサポート。
+ * 指定された式の文字列をパースし、それに対応する抽象構文木（AST）の Expression オブジェクトを生成する。
+ *
+ * @param exprStr 式を表す文字列
+ * @return パースされた式を表す Expression オブジェクト
  */
 fun parseExpression(exprStr: String): Expression {
     // 演算子とタームごととにリスト化する
@@ -80,6 +89,15 @@ fun parseExpression(exprStr: String): Expression {
     return valueStack.last()
 }
 
+/**
+ * 演算子と2つの式から新しい式を生成します。
+ *
+ * @param op1 演算子を表す文字列。例: "+", "-", "*", "/", "%"
+ * @param v2 左の式
+ * @param v1 右の式
+ * @return 計算結果を表す新しい式
+ * @throws IllegalArgumentException 無効な演算子が指定された場合
+ */
 private fun getExpression(
     op1: String,
     v2: Expression,
@@ -102,6 +120,13 @@ private fun isOperator(str: String): Boolean {
     return str == Keywords.PLUS || str == Keywords.MINUS || str == Keywords.MOD || str == Keywords.MUL || str == Keywords.DIV
 }
 
+/**
+ * 与えられた演算子の優先順位を決定する
+ *
+ * @param op 文字列としての演算子（例：「+」、「-」、「*」、「/」、「%」）。
+ * @return 演算子の優先順位を示す整数。
+ * 値が大きいほど優先順位が高いことを示す。認識できない演算子の場合は0を返します。
+ */
 private fun getOperatorPrecedence(op: String): Int {
     return when (op) {
         Keywords.PLUS, Keywords.MINUS -> 1
@@ -110,13 +135,23 @@ private fun getOperatorPrecedence(op: String): Int {
     }
 }
 
+/**
+ * 式の文字列を演算子とそれ以外でパースする
+ * 12+1*3 -> 12,+,1,*,3
+ *
+ * @param exprStr 式の文字列
+ * @return パースしたリスト
+ */
 private fun splitExpressionText(exprStr: String): List<String> {
     val regex = Regex("""\d+|\w+|[${Regex.escape(Keywords.PLUS + Keywords.MINUS + Keywords.MOD + Keywords.MUL + Keywords.DIV)}]""")
     return regex.findAll(exprStr).map { it.value.trim() }.toList()
 }
 
 /**
- * 単項をパース。
+ * 与えられた文字列を解析して適切な式(Expression)を生成します。
+ *
+ * @param term 解析対象の文字列
+ * @return 解析結果に基づく適切なExpressionインスタンス
  */
 fun parseTerm(term: String): Expression {
     val intValue = term.toIntOrNull()
