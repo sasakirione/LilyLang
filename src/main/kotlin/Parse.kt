@@ -69,7 +69,7 @@ fun parseExpression(exprStr: String): Expression {
                 val op2Pop = operatorStack.removeLast()
                 val v2 = valueStack.removeLast()
                 val v1 = valueStack.removeLast()
-                val res = getExpression(op2Pop, v2, v1)
+                val res = getExpression(op2Pop, v1, v2)
                 valueStack.add(res)
                 op2 = operatorStack.lastOrNull()
             }

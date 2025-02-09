@@ -1,11 +1,13 @@
 package com.sasakirione
 
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 
 class ParseKtTest {
 
     @Test
+    @DisplayName("整数リテラルを解析する")
     fun parseExpression_test001() {
         val result = parseExpression("42")
         val expected = Expression.IntLiteral(42)
@@ -13,6 +15,7 @@ class ParseKtTest {
     }
 
     @Test
+    @DisplayName("変数参照を解析する")
     fun parseExpression_test002() {
         val result = parseExpression("x")
         val expected = Expression.VariableRef("x")
@@ -20,6 +23,7 @@ class ParseKtTest {
     }
 
     @Test
+    @DisplayName("加算式を解析する")
     fun parseExpression_test003() {
         val result = parseExpression("3 + 2")
         val expected = Expression.Add(
@@ -30,6 +34,7 @@ class ParseKtTest {
     }
 
     @Test
+    @DisplayName("減算式を解析する")
     fun parseExpression_test004() {
         val result = parseExpression("10 - 7")
         val expected = Expression.Sub(
@@ -40,6 +45,7 @@ class ParseKtTest {
     }
 
     @Test
+    @DisplayName("乗算式を解析する")
     fun parseExpression_test005() {
         val result = parseExpression("6 * 3")
         val expected = Expression.Mul(
@@ -50,6 +56,7 @@ class ParseKtTest {
     }
 
     @Test
+    @DisplayName("除算式を解析する")
     fun parseExpression_test006() {
         val result = parseExpression("12 / 4")
         val expected = Expression.Div(
@@ -60,6 +67,7 @@ class ParseKtTest {
     }
 
     @Test
+    @DisplayName("剰余算式を解析する")
     fun parseExpression_test007() {
         val result = parseExpression("15 % 4")
         val expected = Expression.Mod(
@@ -70,6 +78,7 @@ class ParseKtTest {
     }
 
     @Test
+    @DisplayName("加算と乗算の複合式を解析する")
     fun parseExpression_test008() {
         val result = parseExpression("2 + 3 * 4")
         val expected = Expression.Add(
@@ -83,6 +92,7 @@ class ParseKtTest {
     }
 
     @Test
+    @DisplayName("加算と減算の複合式を解析する")
     fun parseExpression_test009() {
         val result = parseExpression("8 - 4 + 2")
         val expected = Expression.Add(
@@ -96,6 +106,7 @@ class ParseKtTest {
     }
 
     @Test
+    @DisplayName("複数変数の加算式を解析する")
     fun parseExpression_test010() {
         val result = parseExpression("x + y")
         val expected = Expression.Add(
@@ -106,6 +117,7 @@ class ParseKtTest {
     }
 
     @Test
+    @DisplayName("リストを解析する")
     fun parseExpression_test011() {
         val result = parseExpression("listOf")
         val expected = Expression.List("Object")
