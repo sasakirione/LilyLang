@@ -123,4 +123,28 @@ class ParseKtTest {
         val expected = Expression.List("Object")
         assertEquals(expected, result)
     }
+
+    @Test
+    @DisplayName("変数宣言を解析する")
+    fun parseLine_test001() {
+        val result = parseLine("var x = 10")
+        val expected = Statement.VarDecl("x", Expression.IntLiteral(10))
+        assertEquals(expected, result)
+    }
+
+    @Test
+    @DisplayName("変数代入を解析する")
+    fun parseLine_test002() {
+        val result = parseLine("x = 5")
+        val expected = Statement.VarAssign("x", Expression.IntLiteral(5))
+        assertEquals(expected, result)
+    }
+
+    @Test
+    @DisplayName("Print文を解析する")
+    fun parseLine_test003() {
+        val result = parseLine("print 15")
+        val expected = Statement.Print(Expression.IntLiteral(15))
+        assertEquals(expected, result)
+    }
 }
