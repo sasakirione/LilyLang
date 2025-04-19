@@ -1,214 +1,36 @@
-package com.sasakirione
-
-import org.objectweb.asm.ClassWriter
-import org.objectweb.asm.MethodVisitor
-import org.objectweb.asm.Opcodes
+import java.io.File
 import java.io.FileOutputStream
+import java.nio.file.Files
+import java.nio.file.Paths
+import kotlin.system.exitProcess
 
-/* ==============================
- *  3) バイトコード生成 (AST -> .class)
- * ============================== */
-
+/**
+ * Variable details for bytecode generation
+ */
 data class VariableDetail(val type: String, val index: Int, val name: String)
 
-/**
- * AST (Program) をもとに、バイトコード(.class)を生成して返す。
- *
- * @param program   パース済みの AST
- * @param className 生成するクラス名 (例: "SimpleProgram")
- */
-fun compileToBytecode(program: Program, className: String): ByteArray {
-    val cw = ClassWriter(0)
-
-    // クラス定義: public class <className> extends Object
-    cw.visit(
-        Opcodes.V24,
-        Opcodes.ACC_PUBLIC,
-        className,
-        null,
-        "java/lang/Object",
-        null
-    )
-
-    // デフォルトコンストラクタ (public <init>())
-    run {
-        val mv = cw.visitMethod(
-            Opcodes.ACC_PUBLIC,
-            "<init>",
-            "()V",
-            null,
-            null
-        )
-        mv.visitCode()
-        mv.visitVarInsn(Opcodes.ALOAD, 0)
-        mv.visitMethodInsn(
-            Opcodes.INVOKESPECIAL,
-            "java/lang/Object",
-            "<init>",
-            "()V",
-            false
-        )
-        mv.visitInsn(Opcodes.RETURN)
-        mv.visitMaxs(1, 1)
-        mv.visitEnd()
-    }
-
-    // main メソッド定義: public static void main(String[] args)
-    val mv = cw.visitMethod(
-        Opcodes.ACC_PUBLIC or Opcodes.ACC_STATIC,
-        "main",
-        "([Ljava/lang/String;)V",
-        null,
-        null
-    )
-    mv.visitCode()
-
-    // 変数名 -> ローカル変数番号 のマッピング
-    // main のローカル変数 0 は args 用
-    val varIndexMap = mutableListOf<VariableDetail>()
-    var nextLocalIndex = 1
-
-    // AST の文を順にコード生成
-    for (stmt in program.statements) {
-        when (stmt) {
-            is Statement.VarDecl -> {
-                var isExist = varIndexMap.any{ it.name == stmt.varName }
-                if (isExist) {
-                    error("変数の再定義はできません: ${stmt.varName}")
-                }
-
-                // expr をスタックに積む
-                generateExpression(stmt.expr, mv, varIndexMap)
-
-                // スタックトップにある int をローカル変数に格納
-                varIndexMap.add(VariableDetail("int", nextLocalIndex, stmt.varName))
-                when (stmt.expr) {
-                    is Expression.List -> {
-                        // Expression.List の場合は ArrayList インスタンス（オブジェクト参照）がスタックにあるので
-                        // A-STORE 命令を使用する
-                        mv.visitVarInsn(Opcodes.ASTORE, nextLocalIndex)
-                    }
-                    else -> {
-                        // それ以外（整数など）の場合は I-STORE 命令を使用する
-                        mv.visitVarInsn(Opcodes.ISTORE, nextLocalIndex)
-                    }
-                }
-                nextLocalIndex++
-            }
-
-            is Statement.Print -> {
-                // expr をスタックに積む
-                generateExpression(stmt.expr, mv, varIndexMap)
-
-                // print 処理: System.out.println(int)
-                mv.visitFieldInsn(
-                    Opcodes.GETSTATIC,
-                    "java/lang/System",
-                    "out",
-                    "Ljava/io/PrintStream;"
-                )
-                // スタックには [int, PrintStream] の順で乗っているので swap で入れ替え
-                mv.visitInsn(Opcodes.SWAP)
-                mv.visitMethodInsn(
-                    Opcodes.INVOKEVIRTUAL,
-                    "java/io/PrintStream",
-                    "println",
-                    "(I)V",
-                    false
-                )
-            }
-
-            is Statement.VarAssign -> {
-                val varDetail = varIndexMap.firstOrNull { it.name == stmt.varName } ?:
-                    error("変数が宣言されていません: ${stmt.varName}")
-
-                generateExpression(stmt.expr, mv, varIndexMap)
-
-                mv.visitVarInsn(Opcodes.ISTORE, varDetail.index)
-            }
-        }
-    }
-
-    // main メソッド終了
-    mv.visitInsn(Opcodes.RETURN)
-    // スタックサイズとローカル変数サイズを指定
-    mv.visitMaxs(2, nextLocalIndex)
-    mv.visitEnd()
-
-    // クラス定義終了
-    cw.visitEnd()
-
-    // バイト配列として返す
-    return cw.toByteArray()
-}
-
-/**
- * 式をコンパイルしてスタックに int を積む。
- */
-fun generateExpression(
-    expr: Expression,
-    mv: MethodVisitor,
-    varIndexMap: MutableList<VariableDetail>
-) {
-    when (expr) {
-        is Expression.IntLiteral -> {
-            // 整数リテラルをスタックに積む
-            mv.visitLdcInsn(expr.value)
-        }
-        is Expression.VariableRef -> {
-            // 変数をLOAD
-            val detail = varIndexMap.firstOrNull { it.name == expr.name } ?:
-                error("未定義の変数: ${expr.name}")
-            mv.visitVarInsn(Opcodes.ILOAD, detail.index)
-        }
-        is Expression.Add -> {
-            // left, right を生成後、ADD
-            generateExpression(expr.left, mv, varIndexMap)
-            generateExpression(expr.right, mv, varIndexMap)
-            mv.visitInsn(Opcodes.IADD)
-        }
-        is Expression.Sub -> {
-            generateExpression(expr.left, mv, varIndexMap)
-            generateExpression(expr.right, mv, varIndexMap)
-            mv.visitInsn(Opcodes.ISUB)
-        }
-        is Expression.Mul -> {
-            generateExpression(expr.left, mv, varIndexMap)
-            generateExpression(expr.right, mv, varIndexMap)
-            mv.visitInsn(Opcodes.IMUL)
-        }
-        is Expression.Div -> {
-            generateExpression(expr.left, mv, varIndexMap)
-            generateExpression(expr.right, mv, varIndexMap)
-            mv.visitInsn(Opcodes.IDIV)
-        }
-        is Expression.Mod -> {
-            generateExpression(expr.left, mv, varIndexMap)
-            generateExpression(expr.right, mv, varIndexMap)
-            mv.visitInsn(Opcodes.IREM)
-        }
-
-        is Expression.List -> {
-            mv.visitTypeInsn(Opcodes.NEW, "java/util/ArrayList")
-            mv.visitInsn(Opcodes.DUP) // DUP命令
-            mv.visitMethodInsn(
-                Opcodes.INVOKESPECIAL,
-                "java/util/ArrayList",
-                "<init>",
-                "()V",
-                false
-            )
-        }
-    }
-}
-
 /* ==============================
- *  4) 動作確認用 main 関数
+ *  Main function for LilyLang compiler
  * ============================== */
 
-fun main() {
-    // サンプルの小さなプログラム
-    val sampleSource = """
+fun main(args: Array<String>) {
+    // Parse command-line arguments and create configuration
+    val (config, sourceFile) = parseCommandLineArgs(args)
+    
+    // Create error reporter
+    val errorReporter = ErrorReporter()
+    
+    // Read source code from a file or use sample if no file provided
+    val sourceCode = if (sourceFile != null) {
+        try {
+            String(Files.readAllBytes(Paths.get(sourceFile)))
+        } catch (e: Exception) {
+            println("Error reading source file: ${e.message}")
+            return
+        }
+    } else {
+        // Sample small program for testing
+        """
         var x = 10
         var y = 20
         var z = x + y - 10 + 100
@@ -216,23 +38,172 @@ fun main() {
         var exp2 = 10 + x * y - 5
         var exp3 = 32 + x / y * z
         var exp4 = exp1 % 3
-        var testList = list()
         z = 3
         print z
         print y + x
         print y - x
-    """.trimIndent()
+        """.trimIndent()
+    }
+    
+    if (config.verbose) {
+        println("Compiling ${sourceFile ?: "sample code"}...")
+    }
 
-    // 1. ソースコードをパースしてASTを得る
-    val programAst = parseProgram(sampleSource)
+    try {
+        // Compiler phases
+        // 1. Lexical Analysis: Convert source code to tokens
+        if (config.verbose) println("Phase 1: Lexical Analysis")
+        val lexer = Lexer(sourceCode, errorReporter)
+        val tokens = lexer.tokenize()
+        
+        // Check for lexical errors
+        if (errorReporter.hasErrors() && !config.continueOnError) {
+            errorReporter.printErrors()
+            return
+        }
 
-    // 2. ASTをバイトコードにコンパイル
-    val className = "SimpleProgram"
-    val bytecode = compileToBytecode(programAst, className)
+        // 2. Syntax Analysis: Parse tokens into an AST
+        if (config.verbose) println("Phase 2: Syntax Analysis")
+        val parser = Parser(tokens, errorReporter)
+        val ast = parser.parseProgram()
+        
+        // Check for syntax errors
+        if (errorReporter.hasErrors() && !config.continueOnError) {
+            errorReporter.printErrors()
+            return
+        }
 
-    // 3. .classファイルに書き出し
-    FileOutputStream("$className.class").use { it.write(bytecode) }
+        // 3. Semantic Analysis: Check for semantic errors
+        if (config.verbose) println("Phase 3: Semantic Analysis")
+        val semanticAnalyzer = SemanticAnalyzer(errorReporter)
+        val checkedAst = semanticAnalyzer.analyze(ast)
+        
+        // Check for semantic errors
+        if (errorReporter.hasErrors() && !config.continueOnError) {
+            errorReporter.printErrors()
+            return
+        }
 
-    println("コンパイル完了: $className.class を出力しました。")
-    println("次のコマンドで実行してください: java $className")
+        // 4. Code Generation: Generate bytecode from the AST
+        if (config.verbose) println("Phase 4: Code Generation")
+        val codeGenerator = CodeGenerator()
+        
+        // Determine the class name from a source file or use default
+        val className = if (sourceFile != null) {
+            File(sourceFile).nameWithoutExtension
+        } else {
+            config.outputFileName
+        }
+        
+        val bytecode = codeGenerator.generate(checkedAst, className)
+
+        // 5. Write bytecode to a .class file
+        if (config.verbose) println("Writing bytecode to $className.class")
+        FileOutputStream("$className.class").use { it.write(bytecode) }
+
+        println("Compilation complete: $className.class has been generated.")
+        println("Run with: java $className")
+    } catch (e: CompilationException) {
+        println(e.message)
+    } catch (e: Exception) {
+        println("Unexpected error: ${e.message}")
+        if (config.debug) {
+            e.printStackTrace()
+        }
+    }
+}
+
+/**
+ * Parse command-line arguments and create a compiler configuration
+ *
+ * @param args Command-line arguments
+ * @return Pair of compiler configuration and source file path (or null if not provided)
+ */
+private fun parseCommandLineArgs(args: Array<String>): Pair<CompilerConfig, String?> {
+    val config = CompilerConfig.default()
+    var sourceFile: String? = null
+    
+    var i = 0
+    while (i < args.size) {
+        when (args[i]) {
+            "-o", "--optimize" -> config.optimize = true
+            "-d", "--debug" -> config.debug = true
+            "-v", "--verbose" -> config.verbose = true
+            "-c", "--continue-on-error" -> config.continueOnError = true
+            "-h", "--help" -> {
+                printUsage()
+                exitProcess(0)
+            }
+            "--output" -> {
+                if (i + 1 < args.size) {
+                    config.outputFileName = args[i + 1]
+                    i++
+                } else {
+                    println("Error: Missing argument for --output")
+                    printUsage()
+                    exitProcess(1)
+                }
+            }
+            "--max-errors" -> {
+                if (i + 1 < args.size) {
+                    try {
+                        config.maxErrors = args[i + 1].toInt()
+                        i++
+                    } catch (_: NumberFormatException) {
+                        println("Error: Invalid argument for --max-errors")
+                        printUsage()
+                        exitProcess(1)
+                    }
+                } else {
+                    println("Error: Missing argument for --max-errors")
+                    printUsage()
+                    exitProcess(1)
+                }
+            }
+            "--dev" -> {
+                // Preset for development
+                val devConfig = CompilerConfig.development()
+                config.debug = devConfig.debug
+                config.verbose = devConfig.verbose
+                config.continueOnError = devConfig.continueOnError
+            }
+            "--prod" -> {
+                // Preset for production
+                val prodConfig = CompilerConfig.production()
+                config.optimize = prodConfig.optimize
+                config.debug = prodConfig.debug
+                config.verbose = prodConfig.verbose
+                config.continueOnError = prodConfig.continueOnError
+            }
+            else -> {
+                if (!args[i].startsWith("-")) {
+                    sourceFile = args[i]
+                } else {
+                    println("Unknown option: ${args[i]}")
+                    printUsage()
+                    exitProcess(1)
+                }
+            }
+        }
+        i++
+    }
+    
+    return Pair(config, sourceFile)
+}
+
+/**
+ * Print usage information
+ */
+private fun printUsage() {
+    println("Usage: lilylang [options] [source_file]")
+    println("Options:")
+    println("  -o, --optimize           Enable bytecode optimization")
+    println("  -d, --debug              Generate debug information")
+    println("  -v, --verbose            Print verbose output during compilation")
+    println("  -c, --continue-on-error  Continue compilation after errors")
+    println("  --output <name>          Set output file name (without extension)")
+    println("  --max-errors <number>    Maximum number of errors to report")
+    println("  --dev                    Use development configuration preset")
+    println("  --prod                   Use production configuration preset")
+    println("  -h, --help               Print this help message")
 }

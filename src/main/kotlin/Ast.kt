@@ -83,13 +83,13 @@ sealed class Expression {
 object Keywords {
     const val VAR = "var"
     const val PRINT = "print"
-    const val PLUS = "+"
-    const val MINUS = "-"
-    const val MUL = "*"
-    const val DIV = "/"
-    const val MOD = "%"
-    const val EQUALS = "="
-    const val LESS_THAN = "<"
-    const val GREATER_THAN = ">"
+    const val PLUS = '+'
+    const val MINUS = '-'
+    const val MUL = '*'
+    const val DIV = '/'
+    const val MOD = '%'
+    const val EQUALS = '='
+    const val LESS_THAN = '<'
+    const val GREATER_THAN = '>'
     const val LIST = "list"
 }

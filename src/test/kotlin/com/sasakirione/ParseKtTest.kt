@@ -1,8 +1,30 @@
 package com.sasakirione
 
+import Lexer
+import Parser
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
+
+/**
+ * Helper function to parse an expression using the new Parser class
+ */
+private fun parseExpression(exprStr: String): Expression {
+    val lexer = Lexer(exprStr)
+    val tokens = lexer.tokenize()
+    val parser = Parser(tokens)
+    return parser.parseExpression()
+}
+
+/**
+ * Helper function to parse a line using the new Parser class
+ */
+private fun parseLine(line: String): Statement {
+    val lexer = Lexer(line)
+    val tokens = lexer.tokenize()
+    val parser = Parser(tokens)
+    return parser.parseStatement()
+}
 
 class ParseKtTest {
 
