@@ -1,5 +1,5 @@
 plugins {
-    kotlin("jvm") version "2.1.10"
+    kotlin("jvm") version "2.1.20"
 }
 
 group = "com.sasakirione"
@@ -11,8 +11,8 @@ repositories {
 
 dependencies {
     testImplementation(kotlin("test"))
-    implementation("org.ow2.asm:asm:9.7.1")
-    implementation("org.ow2.asm:asm-commons:9.7.1")
+    implementation("org.ow2.asm:asm:9.8")
+    implementation("org.ow2.asm:asm-commons:9.8")
 }
 
 tasks.test {
