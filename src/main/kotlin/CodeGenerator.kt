@@ -11,6 +11,38 @@ import org.objectweb.asm.Opcodes
  */
 class CodeGenerator {
     /**
+     * Determine the type of an expression at compile time
+     *
+     * @param expr The expression to analyze
+     * @param varIndexMap The variable index map
+     * @return The type of the expression ("int", "boolean", "string", etc.)
+     */
+    private fun getExpressionType(expr: Expression, varIndexMap: List<VariableDetail>): String {
+        return when (expr) {
+            is Expression.IntLiteral -> "int"
+            is Expression.BooleanLiteral -> "boolean"
+            is Expression.StringLiteral -> "string"
+            is Expression.VariableRef -> {
+                val detail = varIndexMap.firstOrNull { it.name == expr.name }
+                    ?: error("Undefined variable: ${expr.name}")
+                detail.type
+            }
+            is Expression.Add -> {
+                val leftType = getExpressionType(expr.left, varIndexMap)
+                val rightType = getExpressionType(expr.right, varIndexMap)
+
+                if (leftType == "string" || rightType == "string") {
+                    "string"
+                } else {
+                    "int"
+                }
+            }
+            is Expression.Sub, is Expression.Mul, is Expression.Div, is Expression.Mod -> "int"
+            is Expression.And, is Expression.Or, is Expression.Not -> "boolean"
+            is Expression.List -> "Object"
+        }
+    }
+    /**
      * Generate bytecode for a program
      *
      * @param program The AST of the program
@@ -103,10 +135,18 @@ class CodeGenerator {
                     // Generate code for the expression
                     generateExpression(stmt.expr, mv, varIndexMap)
 
+                    // Determine the type of the expression
+                    val exprType = getExpressionType(stmt.expr, varIndexMap)
+
                     // Store the value in a local variable
-                    varIndexMap.add(VariableDetail("int", nextLocalIndex, stmt.varName))
-                    when (stmt.expr) {
-                        is Expression.List -> {
+                    varIndexMap.add(VariableDetail(exprType, nextLocalIndex, stmt.varName))
+
+                    when (exprType) {
+                        "string" -> {
+                            // For strings (object references), use ASTORE
+                            mv.visitVarInsn(Opcodes.ASTORE, nextLocalIndex)
+                        }
+                        "Object" -> {
                             // For ArrayList instances (object references), use ASTORE
                             mv.visitVarInsn(Opcodes.ASTORE, nextLocalIndex)
                         }
@@ -119,9 +159,6 @@ class CodeGenerator {
                 }
 
                 is Statement.Print -> {
-                    // For boolean expressions, we need to convert the integer value to a boolean string
-                    // For other expressions, we can use the default println(int) method
-
                     // Generate code for the expression
                     generateExpression(stmt.expr, mv, varIndexMap)
 
@@ -133,19 +170,45 @@ class CodeGenerator {
                         "Ljava/io/PrintStream;"
                     )
 
+                    // Determine the type of the expression
+                    val exprType = getExpressionType(stmt.expr, varIndexMap)
+
                     // Stack has [value, PrintStream], so swap them
                     mv.visitInsn(Opcodes.SWAP)
 
-                    // Use println(int) for all values
-                    // This will print 1 for true and 0 for false, which is acceptable for now
-                    // In a more advanced implementation, we could convert boolean values to strings
-                    mv.visitMethodInsn(
-                        Opcodes.INVOKEVIRTUAL,
-                        "java/io/PrintStream",
-                        "println",
-                        "(I)V",
-                        false
-                    )
+                    // Use the appropriate println method based on the expression type
+                    when (exprType) {
+                        "string" -> {
+                            mv.visitMethodInsn(
+                                Opcodes.INVOKEVIRTUAL,
+                                "java/io/PrintStream",
+                                "println",
+                                "(Ljava/lang/String;)V",
+                                false
+                            )
+                        }
+                        "boolean" -> {
+                            // For booleans, we could convert 0/1 to "false"/"true" for better output
+                            // But for simplicity, we'll just use println(int) for now
+                            mv.visitMethodInsn(
+                                Opcodes.INVOKEVIRTUAL,
+                                "java/io/PrintStream",
+                                "println",
+                                "(I)V",
+                                false
+                            )
+                        }
+                        else -> {
+                            // For integers and other types, use println(int)
+                            mv.visitMethodInsn(
+                                Opcodes.INVOKEVIRTUAL,
+                                "java/io/PrintStream",
+                                "println",
+                                "(I)V",
+                                false
+                            )
+                        }
+                    }
                 }
 
                 is Statement.VarAssign -> {
@@ -155,8 +218,17 @@ class CodeGenerator {
                     // Generate code for the expression
                     generateExpression(stmt.expr, mv, varIndexMap)
 
-                    // Store the value in the variable
-                    mv.visitVarInsn(Opcodes.ISTORE, varDetail.index)
+                    // Store the value in the variable using the appropriate instruction
+                    when (varDetail.type) {
+                        "string", "Object" -> {
+                            // For strings and objects, use ASTORE
+                            mv.visitVarInsn(Opcodes.ASTORE, varDetail.index)
+                        }
+                        else -> {
+                            // For integers and other primitives, use ISTORE
+                            mv.visitVarInsn(Opcodes.ISTORE, varDetail.index)
+                        }
+                    }
                 }
             }
         }
@@ -189,17 +261,58 @@ class CodeGenerator {
                 // Push boolean literal onto the stack (1 for true, 0 for false)
                 mv.visitLdcInsn(if (expr.value) 1 else 0)
             }
+            is Expression.StringLiteral -> {
+                // Push string literal onto the stack
+                mv.visitLdcInsn(expr.value)
+            }
             is Expression.VariableRef -> {
                 // Load variable value onto the stack
                 val detail = varIndexMap.firstOrNull { it.name == expr.name }
                     ?: error("Undefined variable: ${expr.name}")
-                mv.visitVarInsn(Opcodes.ILOAD, detail.index)
+
+                // Use appropriate load instruction based on variable type
+                when (detail.type) {
+                    "string" -> mv.visitVarInsn(Opcodes.ALOAD, detail.index)
+                    else -> mv.visitVarInsn(Opcodes.ILOAD, detail.index)
+                }
             }
             is Expression.Add -> {
-                // Generate code for left and right operands, then add
-                generateExpression(expr.left, mv, varIndexMap)
-                generateExpression(expr.right, mv, varIndexMap)
-                mv.visitInsn(Opcodes.IADD)
+                // Check if this is string concatenation
+                val leftType = getExpressionType(expr.left, varIndexMap)
+                val rightType = getExpressionType(expr.right, varIndexMap)
+
+                if (leftType == "string" || rightType == "string") {
+                    // String concatenation using StringBuilder
+                    mv.visitTypeInsn(Opcodes.NEW, "java/lang/StringBuilder")
+                    mv.visitInsn(Opcodes.DUP)
+                    mv.visitMethodInsn(Opcodes.INVOKESPECIAL, "java/lang/StringBuilder", "<init>", "()V", false)
+
+                    // Append left operand
+                    generateExpression(expr.left, mv, varIndexMap)
+                    if (leftType == "int") {
+                        // Convert int to String
+                        mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/String", "valueOf", "(I)Ljava/lang/String;", false)
+                    }
+                    mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/StringBuilder", "append", 
+                        if (leftType == "string") "(Ljava/lang/String;)Ljava/lang/StringBuilder;" else "(Ljava/lang/Object;)Ljava/lang/StringBuilder;", false)
+
+                    // Append right operand
+                    generateExpression(expr.right, mv, varIndexMap)
+                    if (rightType == "int") {
+                        // Convert int to String
+                        mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/String", "valueOf", "(I)Ljava/lang/String;", false)
+                    }
+                    mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/StringBuilder", "append", 
+                        if (rightType == "string") "(Ljava/lang/String;)Ljava/lang/StringBuilder;" else "(Ljava/lang/Object;)Ljava/lang/StringBuilder;", false)
+
+                    // Convert StringBuilder to String
+                    mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/StringBuilder", "toString", "()Ljava/lang/String;", false)
+                } else {
+                    // Regular integer addition
+                    generateExpression(expr.left, mv, varIndexMap)
+                    generateExpression(expr.right, mv, varIndexMap)
+                    mv.visitInsn(Opcodes.IADD)
+                }
             }
             is Expression.Sub -> {
                 // Generate code for left and right operands, then subtract

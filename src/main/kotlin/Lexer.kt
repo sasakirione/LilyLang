@@ -26,6 +26,7 @@ sealed class TokenType {
     // Literals
     object INT_LITERAL : TokenType()
     object BOOLEAN_LITERAL : TokenType()
+    object STRING_LITERAL : TokenType()
 
     // Identifiers
     object IDENTIFIER : TokenType()
@@ -72,6 +73,7 @@ class Lexer(private val source: String, private val errorReporter: ErrorReporter
                 char.isWhitespace() -> skipWhitespace()
                 char.isDigit() -> tokenizeNumber()
                 char.isLetter() -> tokenizeIdentifier()
+                char == '"' -> tokenizeString()
                 char == Keywords.PLUS -> addToken(TokenType.PLUS, "+")
                 char == Keywords.MINUS -> addToken(TokenType.MINUS, "-")
                 char == Keywords.MUL -> addToken(TokenType.MUL, "*")
@@ -137,6 +139,43 @@ class Lexer(private val source: String, private val errorReporter: ErrorReporter
         }
 
         tokens.add(Token(type, value, line, startColumn))
+    }
+
+    private fun tokenizeString() {
+        val start = position
+        val startColumn = column
+
+        // Skip the opening quote
+        advance()
+
+        // Read until closing quote or end of file
+        while (position < source.length && source[position] != '"') {
+            // Handle escaped characters if needed
+            if (source[position] == '\\' && position + 1 < source.length) {
+                advance() // Skip the backslash
+            }
+
+            // Handle newlines in strings
+            if (source[position] == '\n') {
+                line++
+                column = 1
+            }
+
+            advance()
+        }
+
+        if (position >= source.length) {
+            // Unterminated string
+            errorReporter?.reportLexicalError("Unterminated string", line, startColumn)
+            // We'll still create a token with what we have
+        } else {
+            // Skip the closing quote
+            advance()
+        }
+
+        // Extract the string value (excluding the quotes)
+        val value = source.substring(start + 1, if (position > start + 1 && source[position - 1] == '"') position - 1 else position)
+        tokens.add(Token(TokenType.STRING_LITERAL, value, line, startColumn))
     }
 
     private fun addToken(type: TokenType, value: String) {

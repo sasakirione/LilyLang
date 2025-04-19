@@ -192,6 +192,10 @@ class Parser(private val tokens: List<Token>, private val errorReporter: ErrorRe
                 advance()
                 Expression.BooleanLiteral(token.value == Keywords.TRUE)
             }
+            TokenType.STRING_LITERAL -> {
+                advance()
+                Expression.StringLiteral(token.value)
+            }
             TokenType.IDENTIFIER -> {
                 advance()
                 Expression.VariableRef(token.value)

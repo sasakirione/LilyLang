@@ -8,3 +8,17 @@ print b
 print c
 print d
 print e
+
+var greeting = "Hello"
+var name = "World"
+var message = greeting + " " + name
+print greeting
+print name
+print message
+
+var count = 42
+var countMessage = "The answer is: " + count
+print countMessage
+
+var combined = greeting + " " + name + "! " + countMessage
+print combined

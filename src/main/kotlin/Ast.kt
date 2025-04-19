@@ -52,6 +52,11 @@ sealed class Expression {
     data class BooleanLiteral(val value: Boolean) : Expression()
 
     /**
+     * 文字列リテラル
+     */
+    data class StringLiteral(val value: String) : Expression()
+
+    /**
      * 変数宣言子
      */
     data class VariableRef(val name: String) : Expression()

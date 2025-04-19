@@ -90,6 +90,8 @@ class SemanticAnalyzer(private val errorReporter: ErrorReporter? = null) {
 
             is Expression.BooleanLiteral -> "boolean"
 
+            is Expression.StringLiteral -> "string"
+
             is Expression.VariableRef -> {
                 // Check if variable is declared
                 val symbol = symbolTable.lookup(expression.name)
@@ -102,9 +104,31 @@ class SemanticAnalyzer(private val errorReporter: ErrorReporter? = null) {
                 return symbol.type
             }
 
-            is Expression.Add, is Expression.Sub, is Expression.Mul, is Expression.Div, is Expression.Mod -> {
+            is Expression.Add -> {
+                val left = analyzeExpression(expression.left)
+                val right = analyzeExpression(expression.right)
+
+                // Special case for string concatenation
+                if (left == "string" && right == "string") {
+                    return "string"
+                } else if (left == "string" || right == "string") {
+                    // Allow string + int or int + string
+                    if (left == "int" || right == "int") {
+                        return "string"
+                    }
+                    errorReporter?.reportSemanticError("Cannot concatenate string with ${if (left == "string") right else left}", 0, 0)
+                    return "error"
+                } else if (left != "int" || right != "int") {
+                    // For non-string operands, require integers
+                    errorReporter?.reportSemanticError("Arithmetic addition requires integer operands", 0, 0)
+                    return "error"
+                }
+
+                return "int"
+            }
+
+            is Expression.Sub, is Expression.Mul, is Expression.Div, is Expression.Mod -> {
                 val left = when (expression) {
-                    is Expression.Add -> analyzeExpression(expression.left)
                     is Expression.Sub -> analyzeExpression(expression.left)
                     is Expression.Mul -> analyzeExpression(expression.left)
                     is Expression.Div -> analyzeExpression(expression.left)
@@ -113,7 +137,6 @@ class SemanticAnalyzer(private val errorReporter: ErrorReporter? = null) {
                 }
 
                 val right = when (expression) {
-                    is Expression.Add -> analyzeExpression(expression.right)
                     is Expression.Sub -> analyzeExpression(expression.right)
                     is Expression.Mul -> analyzeExpression(expression.right)
                     is Expression.Div -> analyzeExpression(expression.right)
