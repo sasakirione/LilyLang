@@ -24,7 +24,7 @@ This document contains a comprehensive list of actionable improvement tasks for 
 
 ## Language Features
 
-[ ] Add support for boolean data types and logical operations (AND, OR, NOT)
+[x] Add support for boolean data types and logical operations (AND, OR, NOT)
 
 [ ] Implement string data type and string operations
 

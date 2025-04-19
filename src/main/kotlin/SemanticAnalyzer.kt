@@ -88,6 +88,8 @@ class SemanticAnalyzer(private val errorReporter: ErrorReporter? = null) {
         return when (expression) {
             is Expression.IntLiteral -> "int"
 
+            is Expression.BooleanLiteral -> "boolean"
+
             is Expression.VariableRef -> {
                 // Check if variable is declared
                 val symbol = symbolTable.lookup(expression.name)
@@ -126,6 +128,40 @@ class SemanticAnalyzer(private val errorReporter: ErrorReporter? = null) {
                 }
 
                 "int"
+            }
+
+            is Expression.And, is Expression.Or -> {
+                val left = when (expression) {
+                    is Expression.And -> analyzeExpression(expression.left)
+                    is Expression.Or -> analyzeExpression(expression.left)
+                    else -> throw IllegalStateException("Unreachable code")
+                }
+
+                val right = when (expression) {
+                    is Expression.And -> analyzeExpression(expression.right)
+                    is Expression.Or -> analyzeExpression(expression.right)
+                    else -> throw IllegalStateException("Unreachable code")
+                }
+
+                // Check if both operands are booleans
+                if (left != "boolean" || right != "boolean") {
+                    errorReporter?.reportSemanticError("Logical operations require boolean operands", 0, 0)
+                    return "error"
+                }
+
+                "boolean"
+            }
+
+            is Expression.Not -> {
+                val operand = analyzeExpression(expression.expr)
+
+                // Check if the operand is a boolean
+                if (operand != "boolean") {
+                    errorReporter?.reportSemanticError("Logical NOT operation requires a boolean operand", 0, 0)
+                    return "error"
+                }
+
+                "boolean"
             }
 
             is Expression.List -> "Object"

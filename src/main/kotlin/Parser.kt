@@ -1,4 +1,5 @@
 import com.sasakirione.Expression
+import com.sasakirione.Keywords
 import com.sasakirione.Program
 import com.sasakirione.Statement
 
@@ -104,7 +105,29 @@ class Parser(private val tokens: List<Token>, private val errorReporter: ErrorRe
      * @return Expression AST node
      */
     fun parseExpression(): Expression {
-        return parseAdditive()
+        return parseLogical()
+    }
+
+    /**
+     * Parse a logical expression (expr AND expr, expr OR expr)
+     *
+     * @return Expression AST node
+     */
+    private fun parseLogical(): Expression {
+        var left = parseAdditive()
+
+        while (match(TokenType.AND) || match(TokenType.OR)) {
+            val operator = previous().type
+            val right = parseAdditive()
+
+            left = when (operator) {
+                TokenType.AND -> Expression.And(left, right)
+                TokenType.OR -> Expression.Or(left, right)
+                else -> throw RuntimeException("Unexpected operator: ${previous().value}")
+            }
+        }
+
+        return left
     }
 
     /**
@@ -165,6 +188,10 @@ class Parser(private val tokens: List<Token>, private val errorReporter: ErrorRe
                 advance()
                 Expression.IntLiteral(token.value.toInt())
             }
+            TokenType.BOOLEAN_LITERAL -> {
+                advance()
+                Expression.BooleanLiteral(token.value == Keywords.TRUE)
+            }
             TokenType.IDENTIFIER -> {
                 advance()
                 Expression.VariableRef(token.value)
@@ -172,6 +199,11 @@ class Parser(private val tokens: List<Token>, private val errorReporter: ErrorRe
             TokenType.LIST -> {
                 advance()
                 Expression.List("Object")
+            }
+            TokenType.NOT -> {
+                advance()
+                val expr = parsePrimary()
+                Expression.Not(expr)
             }
             else -> {
                 errorReporter?.reportSyntaxError("Unexpected token: ${token.value}", token.line, token.column)

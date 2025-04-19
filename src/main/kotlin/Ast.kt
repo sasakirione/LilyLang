@@ -35,14 +35,21 @@ sealed class Statement {
 /**
  * 式の種類。
  * - 整数リテラル
+ * - 真偽値リテラル
  * - 変数参照
  * - 加算式 (ただし a + b の単純な形のみ)
+ * - 論理演算 (AND, OR, NOT)
  */
 sealed class Expression {
     /**
      * 整数リテラル
      */
     data class IntLiteral(val value: Int) : Expression()
+
+    /**
+     * 真偽値リテラル
+     */
+    data class BooleanLiteral(val value: Boolean) : Expression()
 
     /**
      * 変数宣言子
@@ -75,6 +82,21 @@ sealed class Expression {
     data class Mod(val left: Expression, val right: Expression) : Expression()
 
     /**
+     * 論理AND
+     */
+    data class And(val left: Expression, val right: Expression) : Expression()
+
+    /**
+     * 論理OR
+     */
+    data class Or(val left: Expression, val right: Expression) : Expression()
+
+    /**
+     * 論理NOT
+     */
+    data class Not(val expr: Expression) : Expression()
+
+    /**
      * リスト
      */
     data class List(val type: String): Expression()
@@ -92,4 +114,13 @@ object Keywords {
     const val LESS_THAN = '<'
     const val GREATER_THAN = '>'
     const val LIST = "list"
+
+    // Boolean literals
+    const val TRUE = "true"
+    const val FALSE = "false"
+
+    // Logical operators
+    const val AND = "and"
+    const val OR = "or"
+    const val NOT = "not"
 }

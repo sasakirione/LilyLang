@@ -141,7 +141,7 @@ class ParseKtTest {
     @Test
     @DisplayName("リストを解析する")
     fun parseExpression_test011() {
-        val result = parseExpression("listOf")
+        val result = parseExpression("list")
         val expected = Expression.List("Object")
         assertEquals(expected, result)
     }

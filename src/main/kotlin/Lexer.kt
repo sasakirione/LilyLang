@@ -18,8 +18,14 @@ sealed class TokenType {
     object MOD : TokenType()
     object EQUALS : TokenType()
 
+    // Logical operators
+    object AND : TokenType()
+    object OR : TokenType()
+    object NOT : TokenType()
+
     // Literals
     object INT_LITERAL : TokenType()
+    object BOOLEAN_LITERAL : TokenType()
 
     // Identifiers
     object IDENTIFIER : TokenType()
@@ -122,6 +128,11 @@ class Lexer(private val source: String, private val errorReporter: ErrorReporter
             Keywords.VAR -> TokenType.VAR
             Keywords.PRINT -> TokenType.PRINT
             Keywords.LIST -> TokenType.LIST
+            Keywords.TRUE -> TokenType.BOOLEAN_LITERAL
+            Keywords.FALSE -> TokenType.BOOLEAN_LITERAL
+            Keywords.AND -> TokenType.AND
+            Keywords.OR -> TokenType.OR
+            Keywords.NOT -> TokenType.NOT
             else -> TokenType.IDENTIFIER
         }
 

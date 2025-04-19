@@ -119,18 +119,26 @@ class CodeGenerator {
                 }
 
                 is Statement.Print -> {
+                    // For boolean expressions, we need to convert the integer value to a boolean string
+                    // For other expressions, we can use the default println(int) method
+
                     // Generate code for the expression
                     generateExpression(stmt.expr, mv, varIndexMap)
 
-                    // Print the value: System.out.println(int)
+                    // Get System.out
                     mv.visitFieldInsn(
                         Opcodes.GETSTATIC,
                         "java/lang/System",
                         "out",
                         "Ljava/io/PrintStream;"
                     )
-                    // Stack has [int, PrintStream], so swap them
+
+                    // Stack has [value, PrintStream], so swap them
                     mv.visitInsn(Opcodes.SWAP)
+
+                    // Use println(int) for all values
+                    // This will print 1 for true and 0 for false, which is acceptable for now
+                    // In a more advanced implementation, we could convert boolean values to strings
                     mv.visitMethodInsn(
                         Opcodes.INVOKEVIRTUAL,
                         "java/io/PrintStream",
@@ -177,6 +185,10 @@ class CodeGenerator {
                 // Push integer literal onto the stack
                 mv.visitLdcInsn(expr.value)
             }
+            is Expression.BooleanLiteral -> {
+                // Push boolean literal onto the stack (1 for true, 0 for false)
+                mv.visitLdcInsn(if (expr.value) 1 else 0)
+            }
             is Expression.VariableRef -> {
                 // Load variable value onto the stack
                 val detail = varIndexMap.firstOrNull { it.name == expr.name }
@@ -212,6 +224,26 @@ class CodeGenerator {
                 generateExpression(expr.left, mv, varIndexMap)
                 generateExpression(expr.right, mv, varIndexMap)
                 mv.visitInsn(Opcodes.IREM)
+            }
+            is Expression.And -> {
+                // Generate code for left and right operands, then AND
+                generateExpression(expr.left, mv, varIndexMap)
+                generateExpression(expr.right, mv, varIndexMap)
+                mv.visitInsn(Opcodes.IAND)
+            }
+            is Expression.Or -> {
+                // Generate code for left and right operands, then OR
+                generateExpression(expr.left, mv, varIndexMap)
+                generateExpression(expr.right, mv, varIndexMap)
+                mv.visitInsn(Opcodes.IOR)
+            }
+            is Expression.Not -> {
+                // Generate code for the expression, then NOT
+                generateExpression(expr.expr, mv, varIndexMap)
+
+                // XOR with 1 to negate (0 becomes 1, 1 becomes 0)
+                mv.visitLdcInsn(1)
+                mv.visitInsn(Opcodes.IXOR)
             }
             is Expression.List -> {
                 // Create a new ArrayList
