@@ -21,3 +21,10 @@ tasks.test {
 kotlin {
     jvmToolchain(20)
 }
+
+tasks.register<JavaExec>("run") {
+    group = "application"
+    mainClass.set("MainKt")
+    classpath = sourceSets["main"].runtimeClasspath
+    args = listOf("test_function.lily")
+}

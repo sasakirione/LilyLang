@@ -1,8 +1,3 @@
-import com.sasakirione.Expression
-import com.sasakirione.Keywords
-import com.sasakirione.Program
-import com.sasakirione.Statement
-
 /**
  * Parser for LilyLang
  * Converts a stream of tokens into an Abstract Syntax Tree (AST)
@@ -40,12 +35,53 @@ class Parser(private val tokens: List<Token>, private val errorReporter: ErrorRe
             TokenType.IF -> parseIfStatement()
             TokenType.WHILE -> parseWhileStatement()
             TokenType.FOR -> parseForStatement()
+            TokenType.FUN -> parseFunctionDeclaration()
             else -> {
                 errorReporter?.reportSyntaxError("Unexpected token: ${token.value}", token.line, token.column)
-                // Return a dummy statement to allow parsing to continue
+                // Return a fake statement to allow parsing to continue
                 Statement.Print(Expression.IntLiteral(0))
             }
         }
+    }
+
+    /**
+     * Parse a function declaration
+     *
+     * @return FunctionDecl statement
+     */
+    private fun parseFunctionDeclaration(): Statement {
+        // Consume 'fun' token
+        advance()
+
+        // The Next token should be an identifier (function name)
+        val functionName = consume(TokenType.IDENTIFIER, "Expected function name after 'fun'").value
+
+        // The Next token should be '('
+        consume(TokenType.LEFT_PAREN, "Expected '(' after function name")
+
+        // Parse parameter list
+        val parameters = mutableListOf<String>()
+        if (peek().type != TokenType.RIGHT_PAREN) {
+            do {
+                val paramName = consume(TokenType.IDENTIFIER, "Expected parameter name").value
+                parameters.add(paramName)
+
+                if (peek().type != TokenType.COMMA) {
+                    break
+                }
+
+                // Consume the comma
+                advance()
+            } while (true)
+        }
+
+        // Expect closing parenthesis
+        consume(TokenType.RIGHT_PAREN, "Expected ')' after parameter list")
+
+        // Parse function body
+        val body = parseBlock()
+
+        return Statement.FunctionDecl(functionName, parameters, body)
     }
 
     /**
@@ -157,10 +193,10 @@ class Parser(private val tokens: List<Token>, private val errorReporter: ErrorRe
         // Consume 'var' token
         advance()
 
-        // Next token should be an identifier
+        // The Next token should be an identifier
         val varName = consume(TokenType.IDENTIFIER, "Expected variable name after 'var'").value
 
-        // Next token should be '='
+        // The Next token should be '='
         consume(TokenType.EQUALS, "Expected '=' after variable name")
 
         // Parse the expression after '='
@@ -193,7 +229,7 @@ class Parser(private val tokens: List<Token>, private val errorReporter: ErrorRe
         // Get the variable name
         val varName = consume(TokenType.IDENTIFIER, "Expected variable name").value
 
-        // Next token should be '='
+        // The Next token should be '='
         consume(TokenType.EQUALS, "Expected '=' after variable name")
 
         // Parse the expression after '='
@@ -329,7 +365,38 @@ class Parser(private val tokens: List<Token>, private val errorReporter: ErrorRe
             }
             TokenType.IDENTIFIER -> {
                 advance()
-                Expression.VariableRef(token.value)
+
+                // Check if this is a function call
+                if (peek().type == TokenType.LEFT_PAREN) {
+                    // This is a function call
+                    val functionName = token.value
+
+                    // Consume the '('
+                    advance()
+
+                    // Parse arguments
+                    val arguments = mutableListOf<Expression>()
+                    if (peek().type != TokenType.RIGHT_PAREN) {
+                        do {
+                            arguments.add(parseExpression())
+
+                            if (peek().type != TokenType.COMMA) {
+                                break
+                            }
+
+                            // Consume the comma
+                            advance()
+                        } while (true)
+                    }
+
+                    // Expect closing parenthesis
+                    consume(TokenType.RIGHT_PAREN, "Expected ')' after function arguments")
+
+                    Expression.FunctionCall(functionName, arguments)
+                } else {
+                    // This is a variable reference
+                    Expression.VariableRef(token.value)
+                }
             }
             TokenType.LIST -> {
                 advance()
@@ -342,7 +409,7 @@ class Parser(private val tokens: List<Token>, private val errorReporter: ErrorRe
             }
             else -> {
                 errorReporter?.reportSyntaxError("Unexpected token: ${token.value}", token.line, token.column)
-                // Return a dummy expression to allow parsing to continue
+                // Return a fake expression to allow parsing to continue
                 Expression.IntLiteral(0)
             }
         }
@@ -394,7 +461,7 @@ class Parser(private val tokens: List<Token>, private val errorReporter: ErrorRe
     /**
      * Check if we've reached the end of the token stream
      *
-     * @return true if we're at the end
+     * @return true, if we're at the end
      */
     private fun isAtEnd(): Boolean {
         return peek().type == TokenType.EOF

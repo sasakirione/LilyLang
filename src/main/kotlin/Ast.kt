@@ -1,5 +1,3 @@
-package com.sasakirione
-
 /* ==============================
  *  1) AST 定義
  * ============================== */
@@ -13,7 +11,7 @@ data class Program(
 
 /**
  * 文の種類。
- * 変数定義、変数再代入、標準出力、制御構造（if/else, while, for）
+ * 変数定義、変数再代入、標準出力、制御構造（if/else, while, for）、関数定義
  */
 sealed class Statement {
     /**
@@ -66,6 +64,20 @@ sealed class Statement {
         val update: Statement?,
         val body: List<Statement>
     ) : Statement()
+
+    /**
+     * 関数定義
+     * name: 関数名
+     * params: パラメータ名のリスト
+     * body: 関数本体の文のリスト
+     * returnType: 戻り値の型 (省略可能)
+     */
+    data class FunctionDecl(
+        val name: String,
+        val params: List<String>,
+        val body: List<Statement>,
+        val returnType: String? = null
+    ) : Statement()
 }
 
 /**
@@ -76,6 +88,7 @@ sealed class Statement {
  * - 加算式 (ただし a + b の単純な形のみ)
  * - 論理演算 (AND, OR, NOT)
  * - 比較演算 (==, !=, <, >, <=, >=)
+ * - 関数呼び出し
  */
 sealed class Expression {
     /**
@@ -172,6 +185,13 @@ sealed class Expression {
      * リスト
      */
     data class List(val type: String): Expression()
+
+    /**
+     * 関数呼び出し
+     * name: 関数名
+     * args: 引数のリスト
+     */
+    data class FunctionCall(val name: String, val args: kotlin.collections.List<Expression>): Expression()
 }
 
 object Keywords {
@@ -193,6 +213,9 @@ object Keywords {
     const val WHILE = "while"
     const val FOR = "for"
 
+    // Function keyword
+    const val FUN = "fun"
+
     // Comparison operators
     const val EQUALS_EQUALS = "=="
     const val NOT_EQUALS = "!="
@@ -203,6 +226,9 @@ object Keywords {
     const val LEFT_BRACE = '{'
     const val RIGHT_BRACE = '}'
     const val SEMICOLON = ';'
+    const val LEFT_PAREN = '('
+    const val RIGHT_PAREN = ')'
+    const val COMMA = ','
 
     // Boolean literals
     const val TRUE = "true"

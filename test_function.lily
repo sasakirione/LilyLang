@@ -1,0 +1,25 @@
+fun add(a, b) {
+    var result = a + b;
+    print result;
+}
+
+print "Calling add function with 5 and 3:";
+add(5, 3);
+
+fun multiply(x, y) {
+    var result = x * y;
+    print result;
+}
+
+print "Calling multiply function with 4 and 7:";
+multiply(4, 7);
+
+// Function with a return value (implicit)
+fun square(n) {
+    var result = n * n;
+    result;
+}
+
+var squared = square(6);
+print "Square of 6 is:";
+print squared;

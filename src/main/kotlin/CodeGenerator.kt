@@ -1,6 +1,3 @@
-import com.sasakirione.Expression
-import com.sasakirione.Program
-import com.sasakirione.Statement
 import org.objectweb.asm.ClassWriter
 import org.objectweb.asm.MethodVisitor
 import org.objectweb.asm.Opcodes
@@ -11,9 +8,9 @@ import org.objectweb.asm.Opcodes
  */
 class CodeGenerator {
     /**
-     * Determine the type of an expression at compile time
+     * Determine the type of expression at compile time
      *
-     * @param expr The expression to analyze
+     * @param expr The expression to analyse
      * @param varIndexMap The variable index map
      * @return The type of the expression ("int", "boolean", "string", etc.)
      */
@@ -43,6 +40,7 @@ class CodeGenerator {
             is Expression.LessThan, is Expression.GreaterThan, 
             is Expression.LessEqual, is Expression.GreaterEqual -> "boolean"
             is Expression.List -> "Object"
+            is Expression.FunctionCall -> "int" // For simplicity, assume all functions return int
         }
     }
     /**
@@ -65,16 +63,33 @@ class CodeGenerator {
             null
         )
 
+        // Extract function declarations from the program
+        val functionDeclarations = mutableListOf<Statement.FunctionDecl>()
+        val otherStatements = mutableListOf<Statement>()
+
+        for (stmt in program.statements) {
+            if (stmt is Statement.FunctionDecl) {
+                functionDeclarations.add(stmt)
+            } else {
+                otherStatements.add(stmt)
+            }
+        }
+
         // Default constructor (public <init>())
         generateConstructor(cw)
 
+        // Generate methods for function declarations
+        for (funcDecl in functionDeclarations) {
+            generateFunctionMethod(cw, funcDecl)
+        }
+
         // Main method: public static void main(String[] args)
-        generateMainMethod(cw, program)
+        generateMainMethod(cw, Program(otherStatements))
 
         // Finish class definition
         cw.visitEnd()
 
-        // Return bytecode as byte array
+        // Return bytecode as a byte array
         return cw.toByteArray()
     }
 
@@ -106,6 +121,53 @@ class CodeGenerator {
     }
 
     /**
+     * Generate a method for a function declaration
+     *
+     * @param cw The ClassWriter to use
+     * @param funcDecl The function declaration
+     */
+    private fun generateFunctionMethod(cw: ClassWriter, funcDecl: Statement.FunctionDecl) {
+        // Create a method descriptor based on parameters and return type
+        // For simplicity, all parameters and return values are integers
+        val parameterCount = funcDecl.params.size
+        val descriptor = "(" + "I".repeat(parameterCount) + ")I"
+
+        // Create method
+        val mv = cw.visitMethod(
+            Opcodes.ACC_PUBLIC + Opcodes.ACC_STATIC,
+            funcDecl.name,
+            descriptor,
+            null,
+            null
+        )
+
+        mv.visitCode()
+
+        // Create a variable index map for the function
+        val varIndexMap = mutableListOf<VariableDetail>()
+
+        // Add parameters to variable index map
+        for ((index, paramName) in funcDecl.params.withIndex()) {
+            varIndexMap.add(VariableDetail("int", index, paramName))
+        }
+
+        // Generate code for function body
+        var nextLocalIndex = parameterCount
+        for (stmt in funcDecl.body) {
+            nextLocalIndex = generateStatement(stmt, mv, varIndexMap, nextLocalIndex)
+        }
+
+        // If the function doesn't end with a return statement, add a default return
+        // For simplicity, we'll return 0
+        mv.visitLdcInsn(0)
+        mv.visitInsn(Opcodes.IRETURN)
+
+        // Set stack size and local variable size
+        mv.visitMaxs(2, nextLocalIndex)
+        mv.visitEnd()
+    }
+
+    /**
      * Generate the main method
      *
      * @param cw The ClassWriter to use
@@ -131,7 +193,7 @@ class CodeGenerator {
             nextLocalIndex = generateStatement(stmt, mv, varIndexMap, nextLocalIndex)
         }
 
-        // End of main method
+        // End of the main method
         mv.visitInsn(Opcodes.RETURN)
         // Set stack size and local variable size
         mv.visitMaxs(2, nextLocalIndex)
@@ -156,6 +218,11 @@ class CodeGenerator {
         var updatedNextLocalIndex = nextLocalIndex
 
         when (stmt) {
+            is Statement.FunctionDecl -> {
+                // Function declarations are handled separately in generateFunctionMethod
+                // This case should not be reached in normal execution
+                return updatedNextLocalIndex
+            }
             is Statement.VarDecl -> {
                 val isExist = varIndexMap.any { it.name == stmt.varName }
                 if (isExist) {
@@ -192,7 +259,7 @@ class CodeGenerator {
                 // Generate code for the expression
                 generateExpression(stmt.expr, mv, varIndexMap)
 
-                // Get System.out
+                // Get the System.out
                 mv.visitFieldInsn(
                     Opcodes.GETSTATIC,
                     "java/lang/System",
@@ -218,7 +285,7 @@ class CodeGenerator {
                         )
                     }
                     "boolean" -> {
-                        // For booleans, we could convert 0/1 to "false"/"true" for better output
+                        // For booleans, we could convert 0/1 to "false"/"true" for better output,
                         // But for simplicity, we'll just use println(int) for now
                         mv.visitMethodInsn(
                             Opcodes.INVOKEVIRTUAL,
@@ -262,14 +329,14 @@ class CodeGenerator {
             }
 
             is Statement.If -> {
-                // Create labels for the else branch and end of if statement
+                // Create labels for the else branch and end of the if statement
                 val elseLabel = org.objectweb.asm.Label()
                 val endLabel = org.objectweb.asm.Label()
 
                 // Generate code for the condition
                 generateExpression(stmt.condition, mv, varIndexMap)
 
-                // If condition is false (0), jump to else branch
+                // If the condition is false (0), jump to the else branch
                 mv.visitJumpInsn(Opcodes.IFEQ, elseLabel)
 
                 // Generate code for the then branch
@@ -317,7 +384,7 @@ class CodeGenerator {
                 // Generate code for the condition
                 generateExpression(stmt.condition, mv, varIndexMap)
 
-                // If condition is true (1), jump to the start of the loop
+                // If the condition is true (1), jump to the start of the loop
                 mv.visitJumpInsn(Opcodes.IFNE, startLabel)
 
                 // End of the loop
@@ -331,7 +398,7 @@ class CodeGenerator {
                 val updateLabel = org.objectweb.asm.Label()
                 val endLabel = org.objectweb.asm.Label()
 
-                // Generate code for the initialization if it exists
+                // Generate code for the initialisation if it exists
                 if (stmt.initialization != null) {
                     updatedNextLocalIndex = generateStatement(stmt.initialization, mv, varIndexMap, updatedNextLocalIndex)
                 }
@@ -361,7 +428,7 @@ class CodeGenerator {
                 // Generate code for the condition
                 generateExpression(stmt.condition, mv, varIndexMap)
 
-                // If condition is true (1), jump to the start of the loop
+                // If the condition is true (1), jump to the start of the loop
                 mv.visitJumpInsn(Opcodes.IFNE, startLabel)
 
                 // End of the loop
@@ -402,7 +469,7 @@ class CodeGenerator {
                 val detail = varIndexMap.firstOrNull { it.name == expr.name }
                     ?: error("Undefined variable: ${expr.name}")
 
-                // Use appropriate load instruction based on variable type
+                // Use appropriate load instruction based on a variable type
                 when (detail.type) {
                     "string" -> mv.visitVarInsn(Opcodes.ALOAD, detail.index)
                     else -> mv.visitVarInsn(Opcodes.ILOAD, detail.index)
@@ -495,7 +562,7 @@ class CodeGenerator {
                 generateExpression(expr.left, mv, varIndexMap)
                 generateExpression(expr.right, mv, varIndexMap)
 
-                // Compare for equality (result is 0 if equal, 1 if not equal)
+                // Compare for equality (the result is 0 if equal, 1 if not equal)
                 val label1 = org.objectweb.asm.Label()
                 val label2 = org.objectweb.asm.Label()
                 mv.visitJumpInsn(Opcodes.IF_ICMPEQ, label1)
@@ -510,7 +577,7 @@ class CodeGenerator {
                 generateExpression(expr.left, mv, varIndexMap)
                 generateExpression(expr.right, mv, varIndexMap)
 
-                // Compare for inequality (result is 1 if not equal, 0 if equal)
+                // Compare for inequality (a result is 1 if not equal, 0 if equal)
                 val label1 = org.objectweb.asm.Label()
                 val label2 = org.objectweb.asm.Label()
                 mv.visitJumpInsn(Opcodes.IF_ICMPNE, label1)
@@ -525,14 +592,14 @@ class CodeGenerator {
                 generateExpression(expr.left, mv, varIndexMap)
                 generateExpression(expr.right, mv, varIndexMap)
 
-                // Compare for less than (result is 1 if less than, 0 if not)
+                // Compare for less than (a result is 1 if less than, 0 if not)
                 val label1 = org.objectweb.asm.Label()
                 val label2 = org.objectweb.asm.Label()
                 mv.visitJumpInsn(Opcodes.IF_ICMPLT, label1)
-                mv.visitLdcInsn(0) // Not less than, push 0 (false)
+                mv.visitLdcInsn(0) // Not less than push 0 (false)
                 mv.visitJumpInsn(Opcodes.GOTO, label2)
                 mv.visitLabel(label1)
-                mv.visitLdcInsn(1) // Less than, push 1 (true)
+                mv.visitLdcInsn(1) // Less than push 1 (true)
                 mv.visitLabel(label2)
             }
             is Expression.GreaterThan -> {
@@ -540,14 +607,14 @@ class CodeGenerator {
                 generateExpression(expr.left, mv, varIndexMap)
                 generateExpression(expr.right, mv, varIndexMap)
 
-                // Compare for greater than (result is 1 if greater than, 0 if not)
+                // Compare for greater than (a result is 1 if greater than, 0 if not)
                 val label1 = org.objectweb.asm.Label()
                 val label2 = org.objectweb.asm.Label()
                 mv.visitJumpInsn(Opcodes.IF_ICMPGT, label1)
-                mv.visitLdcInsn(0) // Not greater than, push 0 (false)
+                mv.visitLdcInsn(0) // Not greater than push 0 (false)
                 mv.visitJumpInsn(Opcodes.GOTO, label2)
                 mv.visitLabel(label1)
-                mv.visitLdcInsn(1) // Greater than, push 1 (true)
+                mv.visitLdcInsn(1) // Greater than push 1 (true)
                 mv.visitLabel(label2)
             }
             is Expression.LessEqual -> {
@@ -555,7 +622,7 @@ class CodeGenerator {
                 generateExpression(expr.left, mv, varIndexMap)
                 generateExpression(expr.right, mv, varIndexMap)
 
-                // Compare for less than or equal (result is 1 if less than or equal, 0 if not)
+                // Compare for less than or equal (a result is 1 if less than or equal, 0 if not)
                 val label1 = org.objectweb.asm.Label()
                 val label2 = org.objectweb.asm.Label()
                 mv.visitJumpInsn(Opcodes.IF_ICMPLE, label1)
@@ -570,7 +637,7 @@ class CodeGenerator {
                 generateExpression(expr.left, mv, varIndexMap)
                 generateExpression(expr.right, mv, varIndexMap)
 
-                // Compare for greater than or equal (result is 1 if greater than or equal, 0 if not)
+                // Compare for greater than or equal (a result is 1 if greater than or equal, 0 if not)
                 val label1 = org.objectweb.asm.Label()
                 val label2 = org.objectweb.asm.Label()
                 mv.visitJumpInsn(Opcodes.IF_ICMPGE, label1)
@@ -589,6 +656,26 @@ class CodeGenerator {
                     "java/util/ArrayList",
                     "<init>",
                     "()V",
+                    false
+                )
+            }
+            is Expression.FunctionCall -> {
+                // Generate code for each argument
+                for (arg in expr.args) {
+                    generateExpression(arg, mv, varIndexMap)
+                }
+
+                // Create a method descriptor based on parameters
+                // For simplicity, all parameters and return values are integers
+                val parameterCount = expr.args.size
+                val descriptor = "(" + "I".repeat(parameterCount) + ")I"
+
+                // Call the function
+                mv.visitMethodInsn(
+                    Opcodes.INVOKESTATIC,
+                    "SimpleProgram", // Assuming the class name is SimpleProgram
+                    expr.name,
+                    descriptor,
                     false
                 )
             }

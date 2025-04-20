@@ -33,7 +33,7 @@ This document contains a comprehensive list of actionable improvement tasks for 
    - While loops
    - For loops
 
-[ ] Implement function declarations and calls
+[x] Implement function declarations and calls
 
 [ ] Add support for user-defined data structures/classes
 

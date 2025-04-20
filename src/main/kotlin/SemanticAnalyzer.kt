@@ -1,8 +1,3 @@
-import com.sasakirione.Expression
-import com.sasakirione.Program
-import com.sasakirione.Statement
-
-
 /**
  * Semantic analyzer for LilyLang
  * Performs semantic checks on the AST, such as variable declaration checks
@@ -37,6 +32,24 @@ class SemanticAnalyzer(private val errorReporter: ErrorReporter? = null) {
      */
     private fun analyzeStatement(statement: Statement) {
         when (statement) {
+            is Statement.FunctionDecl -> {
+                // Enter a new scope for the function
+                symbolTable.enterScope()
+
+                // Add parameters to the symbol table
+                for (param in statement.params) {
+                    // For simplicity, all parameters are treated as integers
+                    symbolTable.declare(param, "int", 0, 0)
+                }
+
+                // Analyze the function body
+                for (stmt in statement.body) {
+                    analyzeStatement(stmt)
+                }
+
+                // Exit the function scope
+                symbolTable.exitScope()
+            }
             is Statement.VarDecl -> {
                 // Check if variable is already declared
                 if (symbolTable.lookup(statement.varName) != null) {
@@ -319,6 +332,22 @@ class SemanticAnalyzer(private val errorReporter: ErrorReporter? = null) {
             }
 
             is Expression.List -> "Object"
+
+            is Expression.FunctionCall -> {
+                // For simplicity, we'll assume all functions return int
+                // In a more sophisticated implementation, we would look up the function in a function table
+
+                // Analyze all arguments
+                for (arg in expression.args) {
+                    val argType = analyzeExpression(arg)
+                    // For simplicity, we'll assume all arguments should be int
+                    if (argType != "int") {
+                        errorReporter?.reportSemanticError("Function argument must be an integer", 0, 0)
+                    }
+                }
+
+                "int"
+            }
         }
     }
 }

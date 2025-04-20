@@ -1,6 +1,3 @@
-import com.sasakirione.Keywords
-
-
 /**
  * Token types for the LilyLang language
  */
@@ -13,6 +10,7 @@ sealed class TokenType {
     object ELSE : TokenType()
     object WHILE : TokenType()
     object FOR : TokenType()
+    object FUN : TokenType()
 
     // Operators
     object PLUS : TokenType()
@@ -37,6 +35,9 @@ sealed class TokenType {
     object LEFT_BRACE : TokenType()
     object RIGHT_BRACE : TokenType()
     object SEMICOLON : TokenType()
+    object LEFT_PAREN : TokenType()
+    object RIGHT_PAREN : TokenType()
+    object COMMA : TokenType()
 
     // Literals
     object INT_LITERAL : TokenType()
@@ -46,7 +47,7 @@ sealed class TokenType {
     // Identifiers
     object IDENTIFIER : TokenType()
 
-    // End of file
+    // End of a file
     object EOF : TokenType()
 }
 
@@ -95,7 +96,7 @@ class Lexer(private val source: String, private val errorReporter: ErrorReporter
                 char == Keywords.DIV -> addToken(TokenType.DIV, "/")
                 char == Keywords.MOD -> addToken(TokenType.MOD, "%")
                 char == Keywords.EQUALS -> {
-                    // Check for == (equals equals)
+                    // Check for == (equals)
                     if (position + 1 < source.length && source[position + 1] == Keywords.EQUALS) {
                         addToken(TokenType.EQUALS_EQUALS, "==")
                         advance() // Skip the second '='
@@ -127,7 +128,7 @@ class Lexer(private val source: String, private val errorReporter: ErrorReporter
                         addToken(TokenType.NOT_EQUALS, "!=")
                         advance() // Skip the '='
                     } else {
-                        // Report unknown character as a lexical error
+                        // Report an unknown character as a lexical error
                         errorReporter?.reportLexicalError("Unexpected character: '$char'", line, column)
                         advance()
                     }
@@ -135,8 +136,11 @@ class Lexer(private val source: String, private val errorReporter: ErrorReporter
                 char == Keywords.LEFT_BRACE -> addToken(TokenType.LEFT_BRACE, "{")
                 char == Keywords.RIGHT_BRACE -> addToken(TokenType.RIGHT_BRACE, "}")
                 char == Keywords.SEMICOLON -> addToken(TokenType.SEMICOLON, ";")
+                char == Keywords.LEFT_PAREN -> addToken(TokenType.LEFT_PAREN, "(")
+                char == Keywords.RIGHT_PAREN -> addToken(TokenType.RIGHT_PAREN, ")")
+                char == Keywords.COMMA -> addToken(TokenType.COMMA, ",")
                 else -> {
-                    // Report unknown character as a lexical error
+                    // Report an unknown character as a lexical error
                     errorReporter?.reportLexicalError("Unexpected character: '$char'", line, column)
                     advance()
                 }
@@ -189,6 +193,7 @@ class Lexer(private val source: String, private val errorReporter: ErrorReporter
             Keywords.ELSE -> TokenType.ELSE
             Keywords.WHILE -> TokenType.WHILE
             Keywords.FOR -> TokenType.FOR
+            Keywords.FUN -> TokenType.FUN
             Keywords.TRUE -> TokenType.BOOLEAN_LITERAL
             Keywords.FALSE -> TokenType.BOOLEAN_LITERAL
             Keywords.AND -> TokenType.AND
@@ -207,7 +212,7 @@ class Lexer(private val source: String, private val errorReporter: ErrorReporter
         // Skip the opening quote
         advance()
 
-        // Read until closing quote or end of file
+        // Read until closing quote or end of a file
         while (position < source.length && source[position] != '"') {
             // Handle escaped characters if needed
             if (source[position] == '\\' && position + 1 < source.length) {
