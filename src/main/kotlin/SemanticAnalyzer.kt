@@ -74,6 +74,87 @@ class SemanticAnalyzer(private val errorReporter: ErrorReporter? = null) {
                 // Just analyze the expression
                 analyzeExpression(statement.expr)
             }
+
+            is Statement.If -> {
+                // Analyze the condition
+                val conditionType = analyzeExpression(statement.condition)
+                if (conditionType != "boolean") {
+                    errorReporter?.reportSemanticError("Condition in if statement must be a boolean expression", 0, 0)
+                }
+
+                // Enter a new scope for the then branch
+                symbolTable.enterScope()
+
+                // Analyze the then branch
+                for (stmt in statement.thenBranch) {
+                    analyzeStatement(stmt)
+                }
+
+                // Exit the then branch scope
+                symbolTable.exitScope()
+
+                // If there's an else branch, analyze it too
+                if (statement.elseBranch != null) {
+                    // Enter a new scope for the else branch
+                    symbolTable.enterScope()
+
+                    // Analyze the else branch
+                    for (stmt in statement.elseBranch) {
+                        analyzeStatement(stmt)
+                    }
+
+                    // Exit the else branch scope
+                    symbolTable.exitScope()
+                }
+            }
+
+            is Statement.While -> {
+                // Analyze the condition
+                val conditionType = analyzeExpression(statement.condition)
+                if (conditionType != "boolean") {
+                    errorReporter?.reportSemanticError("Condition in while loop must be a boolean expression", 0, 0)
+                }
+
+                // Enter a new scope for the loop body
+                symbolTable.enterScope()
+
+                // Analyze the loop body
+                for (stmt in statement.body) {
+                    analyzeStatement(stmt)
+                }
+
+                // Exit the loop body scope
+                symbolTable.exitScope()
+            }
+
+            is Statement.For -> {
+                // Enter a new scope for the for loop
+                symbolTable.enterScope()
+
+                // Analyze the initialization if present
+                if (statement.initialization != null) {
+                    analyzeStatement(statement.initialization)
+                }
+
+                // Analyze the condition
+                val conditionType = analyzeExpression(statement.condition)
+                if (conditionType != "boolean") {
+                    errorReporter?.reportSemanticError("Condition in for loop must be a boolean expression", 0, 0)
+                }
+
+                // Analyze the update if present
+                if (statement.update != null) {
+                    analyzeStatement(statement.update)
+                }
+
+                // Analyze the loop body
+                for (stmt in statement.body) {
+                    analyzeStatement(stmt)
+                }
+
+                // Exit the for loop scope
+                symbolTable.exitScope()
+            }
         }
     }
 
@@ -181,6 +262,56 @@ class SemanticAnalyzer(private val errorReporter: ErrorReporter? = null) {
                 // Check if the operand is a boolean
                 if (operand != "boolean") {
                     errorReporter?.reportSemanticError("Logical NOT operation requires a boolean operand", 0, 0)
+                    return "error"
+                }
+
+                "boolean"
+            }
+
+            // Comparison expressions
+            is Expression.Equal, is Expression.NotEqual -> {
+                val left = when (expression) {
+                    is Expression.Equal -> analyzeExpression(expression.left)
+                    is Expression.NotEqual -> analyzeExpression(expression.left)
+                    else -> throw IllegalStateException("Unreachable code")
+                }
+
+                val right = when (expression) {
+                    is Expression.Equal -> analyzeExpression(expression.right)
+                    is Expression.NotEqual -> analyzeExpression(expression.right)
+                    else -> throw IllegalStateException("Unreachable code")
+                }
+
+                // Check if operands are of the same type
+                if (left != right && left != "error" && right != "error") {
+                    errorReporter?.reportSemanticError("Cannot compare values of different types: $left and $right", 0, 0)
+                    return "error"
+                }
+
+                "boolean"
+            }
+
+            // Numeric comparison expressions
+            is Expression.LessThan, is Expression.GreaterThan, is Expression.LessEqual, is Expression.GreaterEqual -> {
+                val left = when (expression) {
+                    is Expression.LessThan -> analyzeExpression(expression.left)
+                    is Expression.GreaterThan -> analyzeExpression(expression.left)
+                    is Expression.LessEqual -> analyzeExpression(expression.left)
+                    is Expression.GreaterEqual -> analyzeExpression(expression.left)
+                    else -> throw IllegalStateException("Unreachable code")
+                }
+
+                val right = when (expression) {
+                    is Expression.LessThan -> analyzeExpression(expression.right)
+                    is Expression.GreaterThan -> analyzeExpression(expression.right)
+                    is Expression.LessEqual -> analyzeExpression(expression.right)
+                    is Expression.GreaterEqual -> analyzeExpression(expression.right)
+                    else -> throw IllegalStateException("Unreachable code")
+                }
+
+                // Check if both operands are integers
+                if (left != "int" || right != "int") {
+                    errorReporter?.reportSemanticError("Numeric comparison requires integer operands", 0, 0)
                     return "error"
                 }
 

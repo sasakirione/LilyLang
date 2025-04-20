@@ -9,6 +9,10 @@ sealed class TokenType {
     object VAR : TokenType()
     object PRINT : TokenType()
     object LIST : TokenType()
+    object IF : TokenType()
+    object ELSE : TokenType()
+    object WHILE : TokenType()
+    object FOR : TokenType()
 
     // Operators
     object PLUS : TokenType()
@@ -17,11 +21,22 @@ sealed class TokenType {
     object DIV : TokenType()
     object MOD : TokenType()
     object EQUALS : TokenType()
+    object EQUALS_EQUALS : TokenType()
+    object NOT_EQUALS : TokenType()
+    object LESS_THAN : TokenType()
+    object GREATER_THAN : TokenType()
+    object LESS_EQUALS : TokenType()
+    object GREATER_EQUALS : TokenType()
 
     // Logical operators
     object AND : TokenType()
     object OR : TokenType()
     object NOT : TokenType()
+
+    // Delimiters
+    object LEFT_BRACE : TokenType()
+    object RIGHT_BRACE : TokenType()
+    object SEMICOLON : TokenType()
 
     // Literals
     object INT_LITERAL : TokenType()
@@ -79,7 +94,47 @@ class Lexer(private val source: String, private val errorReporter: ErrorReporter
                 char == Keywords.MUL -> addToken(TokenType.MUL, "*")
                 char == Keywords.DIV -> addToken(TokenType.DIV, "/")
                 char == Keywords.MOD -> addToken(TokenType.MOD, "%")
-                char == Keywords.EQUALS -> addToken(TokenType.EQUALS, "=")
+                char == Keywords.EQUALS -> {
+                    // Check for == (equals equals)
+                    if (position + 1 < source.length && source[position + 1] == Keywords.EQUALS) {
+                        addToken(TokenType.EQUALS_EQUALS, "==")
+                        advance() // Skip the second '='
+                    } else {
+                        addToken(TokenType.EQUALS, "=")
+                    }
+                }
+                char == Keywords.LESS_THAN -> {
+                    // Check for <= (less than or equal)
+                    if (position + 1 < source.length && source[position + 1] == Keywords.EQUALS) {
+                        addToken(TokenType.LESS_EQUALS, "<=")
+                        advance() // Skip the '='
+                    } else {
+                        addToken(TokenType.LESS_THAN, "<")
+                    }
+                }
+                char == Keywords.GREATER_THAN -> {
+                    // Check for >= (greater than or equal)
+                    if (position + 1 < source.length && source[position + 1] == Keywords.EQUALS) {
+                        addToken(TokenType.GREATER_EQUALS, ">=")
+                        advance() // Skip the '='
+                    } else {
+                        addToken(TokenType.GREATER_THAN, ">")
+                    }
+                }
+                char == '!' -> {
+                    // Check for != (not equal)
+                    if (position + 1 < source.length && source[position + 1] == Keywords.EQUALS) {
+                        addToken(TokenType.NOT_EQUALS, "!=")
+                        advance() // Skip the '='
+                    } else {
+                        // Report unknown character as a lexical error
+                        errorReporter?.reportLexicalError("Unexpected character: '$char'", line, column)
+                        advance()
+                    }
+                }
+                char == Keywords.LEFT_BRACE -> addToken(TokenType.LEFT_BRACE, "{")
+                char == Keywords.RIGHT_BRACE -> addToken(TokenType.RIGHT_BRACE, "}")
+                char == Keywords.SEMICOLON -> addToken(TokenType.SEMICOLON, ";")
                 else -> {
                     // Report unknown character as a lexical error
                     errorReporter?.reportLexicalError("Unexpected character: '$char'", line, column)
@@ -130,6 +185,10 @@ class Lexer(private val source: String, private val errorReporter: ErrorReporter
             Keywords.VAR -> TokenType.VAR
             Keywords.PRINT -> TokenType.PRINT
             Keywords.LIST -> TokenType.LIST
+            Keywords.IF -> TokenType.IF
+            Keywords.ELSE -> TokenType.ELSE
+            Keywords.WHILE -> TokenType.WHILE
+            Keywords.FOR -> TokenType.FOR
             Keywords.TRUE -> TokenType.BOOLEAN_LITERAL
             Keywords.FALSE -> TokenType.BOOLEAN_LITERAL
             Keywords.AND -> TokenType.AND

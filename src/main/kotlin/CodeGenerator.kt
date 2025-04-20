@@ -39,6 +39,9 @@ class CodeGenerator {
             }
             is Expression.Sub, is Expression.Mul, is Expression.Div, is Expression.Mod -> "int"
             is Expression.And, is Expression.Or, is Expression.Not -> "boolean"
+            is Expression.Equal, is Expression.NotEqual, 
+            is Expression.LessThan, is Expression.GreaterThan, 
+            is Expression.LessEqual, is Expression.GreaterEqual -> "boolean"
             is Expression.List -> "Object"
         }
     }
@@ -125,112 +128,7 @@ class CodeGenerator {
 
         // Generate code for each statement
         for (stmt in program.statements) {
-            when (stmt) {
-                is Statement.VarDecl -> {
-                    val isExist = varIndexMap.any { it.name == stmt.varName }
-                    if (isExist) {
-                        error("Variable redefinition not allowed: ${stmt.varName}")
-                    }
-
-                    // Generate code for the expression
-                    generateExpression(stmt.expr, mv, varIndexMap)
-
-                    // Determine the type of the expression
-                    val exprType = getExpressionType(stmt.expr, varIndexMap)
-
-                    // Store the value in a local variable
-                    varIndexMap.add(VariableDetail(exprType, nextLocalIndex, stmt.varName))
-
-                    when (exprType) {
-                        "string" -> {
-                            // For strings (object references), use ASTORE
-                            mv.visitVarInsn(Opcodes.ASTORE, nextLocalIndex)
-                        }
-                        "Object" -> {
-                            // For ArrayList instances (object references), use ASTORE
-                            mv.visitVarInsn(Opcodes.ASTORE, nextLocalIndex)
-                        }
-                        else -> {
-                            // For integers and other primitives, use ISTORE
-                            mv.visitVarInsn(Opcodes.ISTORE, nextLocalIndex)
-                        }
-                    }
-                    nextLocalIndex++
-                }
-
-                is Statement.Print -> {
-                    // Generate code for the expression
-                    generateExpression(stmt.expr, mv, varIndexMap)
-
-                    // Get System.out
-                    mv.visitFieldInsn(
-                        Opcodes.GETSTATIC,
-                        "java/lang/System",
-                        "out",
-                        "Ljava/io/PrintStream;"
-                    )
-
-                    // Determine the type of the expression
-                    val exprType = getExpressionType(stmt.expr, varIndexMap)
-
-                    // Stack has [value, PrintStream], so swap them
-                    mv.visitInsn(Opcodes.SWAP)
-
-                    // Use the appropriate println method based on the expression type
-                    when (exprType) {
-                        "string" -> {
-                            mv.visitMethodInsn(
-                                Opcodes.INVOKEVIRTUAL,
-                                "java/io/PrintStream",
-                                "println",
-                                "(Ljava/lang/String;)V",
-                                false
-                            )
-                        }
-                        "boolean" -> {
-                            // For booleans, we could convert 0/1 to "false"/"true" for better output
-                            // But for simplicity, we'll just use println(int) for now
-                            mv.visitMethodInsn(
-                                Opcodes.INVOKEVIRTUAL,
-                                "java/io/PrintStream",
-                                "println",
-                                "(I)V",
-                                false
-                            )
-                        }
-                        else -> {
-                            // For integers and other types, use println(int)
-                            mv.visitMethodInsn(
-                                Opcodes.INVOKEVIRTUAL,
-                                "java/io/PrintStream",
-                                "println",
-                                "(I)V",
-                                false
-                            )
-                        }
-                    }
-                }
-
-                is Statement.VarAssign -> {
-                    val varDetail = varIndexMap.firstOrNull { it.name == stmt.varName }
-                        ?: error("Variable not declared: ${stmt.varName}")
-
-                    // Generate code for the expression
-                    generateExpression(stmt.expr, mv, varIndexMap)
-
-                    // Store the value in the variable using the appropriate instruction
-                    when (varDetail.type) {
-                        "string", "Object" -> {
-                            // For strings and objects, use ASTORE
-                            mv.visitVarInsn(Opcodes.ASTORE, varDetail.index)
-                        }
-                        else -> {
-                            // For integers and other primitives, use ISTORE
-                            mv.visitVarInsn(Opcodes.ISTORE, varDetail.index)
-                        }
-                    }
-                }
-            }
+            nextLocalIndex = generateStatement(stmt, mv, varIndexMap, nextLocalIndex)
         }
 
         // End of main method
@@ -238,6 +136,240 @@ class CodeGenerator {
         // Set stack size and local variable size
         mv.visitMaxs(2, nextLocalIndex)
         mv.visitEnd()
+    }
+
+    /**
+     * Generate code for a statement
+     *
+     * @param stmt The statement to generate code for
+     * @param mv The MethodVisitor to use
+     * @param varIndexMap The variable index map
+     * @param nextLocalIndex The next available local variable index
+     * @return The updated next available local variable index
+     */
+    private fun generateStatement(
+        stmt: Statement,
+        mv: MethodVisitor,
+        varIndexMap: MutableList<VariableDetail>,
+        nextLocalIndex: Int
+    ): Int {
+        var updatedNextLocalIndex = nextLocalIndex
+
+        when (stmt) {
+            is Statement.VarDecl -> {
+                val isExist = varIndexMap.any { it.name == stmt.varName }
+                if (isExist) {
+                    error("Variable redefinition not allowed: ${stmt.varName}")
+                }
+
+                // Generate code for the expression
+                generateExpression(stmt.expr, mv, varIndexMap)
+
+                // Determine the type of the expression
+                val exprType = getExpressionType(stmt.expr, varIndexMap)
+
+                // Store the value in a local variable
+                varIndexMap.add(VariableDetail(exprType, updatedNextLocalIndex, stmt.varName))
+
+                when (exprType) {
+                    "string" -> {
+                        // For strings (object references), use ASTORE
+                        mv.visitVarInsn(Opcodes.ASTORE, updatedNextLocalIndex)
+                    }
+                    "Object" -> {
+                        // For ArrayList instances (object references), use ASTORE
+                        mv.visitVarInsn(Opcodes.ASTORE, updatedNextLocalIndex)
+                    }
+                    else -> {
+                        // For integers and other primitives, use ISTORE
+                        mv.visitVarInsn(Opcodes.ISTORE, updatedNextLocalIndex)
+                    }
+                }
+                updatedNextLocalIndex++
+            }
+
+            is Statement.Print -> {
+                // Generate code for the expression
+                generateExpression(stmt.expr, mv, varIndexMap)
+
+                // Get System.out
+                mv.visitFieldInsn(
+                    Opcodes.GETSTATIC,
+                    "java/lang/System",
+                    "out",
+                    "Ljava/io/PrintStream;"
+                )
+
+                // Determine the type of the expression
+                val exprType = getExpressionType(stmt.expr, varIndexMap)
+
+                // Stack has [value, PrintStream], so swap them
+                mv.visitInsn(Opcodes.SWAP)
+
+                // Use the appropriate println method based on the expression type
+                when (exprType) {
+                    "string" -> {
+                        mv.visitMethodInsn(
+                            Opcodes.INVOKEVIRTUAL,
+                            "java/io/PrintStream",
+                            "println",
+                            "(Ljava/lang/String;)V",
+                            false
+                        )
+                    }
+                    "boolean" -> {
+                        // For booleans, we could convert 0/1 to "false"/"true" for better output
+                        // But for simplicity, we'll just use println(int) for now
+                        mv.visitMethodInsn(
+                            Opcodes.INVOKEVIRTUAL,
+                            "java/io/PrintStream",
+                            "println",
+                            "(I)V",
+                            false
+                        )
+                    }
+                    else -> {
+                        // For integers and other types, use println(int)
+                        mv.visitMethodInsn(
+                            Opcodes.INVOKEVIRTUAL,
+                            "java/io/PrintStream",
+                            "println",
+                            "(I)V",
+                            false
+                        )
+                    }
+                }
+            }
+
+            is Statement.VarAssign -> {
+                val varDetail = varIndexMap.firstOrNull { it.name == stmt.varName }
+                    ?: error("Variable not declared: ${stmt.varName}")
+
+                // Generate code for the expression
+                generateExpression(stmt.expr, mv, varIndexMap)
+
+                // Store the value in the variable using the appropriate instruction
+                when (varDetail.type) {
+                    "string", "Object" -> {
+                        // For strings and objects, use ASTORE
+                        mv.visitVarInsn(Opcodes.ASTORE, varDetail.index)
+                    }
+                    else -> {
+                        // For integers and other primitives, use ISTORE
+                        mv.visitVarInsn(Opcodes.ISTORE, varDetail.index)
+                    }
+                }
+            }
+
+            is Statement.If -> {
+                // Create labels for the else branch and end of if statement
+                val elseLabel = org.objectweb.asm.Label()
+                val endLabel = org.objectweb.asm.Label()
+
+                // Generate code for the condition
+                generateExpression(stmt.condition, mv, varIndexMap)
+
+                // If condition is false (0), jump to else branch
+                mv.visitJumpInsn(Opcodes.IFEQ, elseLabel)
+
+                // Generate code for the then branch
+                for (thenStmt in stmt.thenBranch) {
+                    updatedNextLocalIndex = generateStatement(thenStmt, mv, varIndexMap, updatedNextLocalIndex)
+                }
+
+                // Jump to the end of the if statement
+                mv.visitJumpInsn(Opcodes.GOTO, endLabel)
+
+                // Else branch
+                mv.visitLabel(elseLabel)
+
+                // Generate code for the else branch if it exists
+                if (stmt.elseBranch != null) {
+                    for (elseStmt in stmt.elseBranch) {
+                        updatedNextLocalIndex = generateStatement(elseStmt, mv, varIndexMap, updatedNextLocalIndex)
+                    }
+                }
+
+                // End of if statement
+                mv.visitLabel(endLabel)
+            }
+
+            is Statement.While -> {
+                // Create labels for the start of the loop, condition check, and end of the loop
+                val startLabel = org.objectweb.asm.Label()
+                val conditionLabel = org.objectweb.asm.Label()
+                val endLabel = org.objectweb.asm.Label()
+
+                // Jump to the condition check
+                mv.visitJumpInsn(Opcodes.GOTO, conditionLabel)
+
+                // Start of the loop body
+                mv.visitLabel(startLabel)
+
+                // Generate code for the loop body
+                for (bodyStmt in stmt.body) {
+                    updatedNextLocalIndex = generateStatement(bodyStmt, mv, varIndexMap, updatedNextLocalIndex)
+                }
+
+                // Condition check
+                mv.visitLabel(conditionLabel)
+
+                // Generate code for the condition
+                generateExpression(stmt.condition, mv, varIndexMap)
+
+                // If condition is true (1), jump to the start of the loop
+                mv.visitJumpInsn(Opcodes.IFNE, startLabel)
+
+                // End of the loop
+                mv.visitLabel(endLabel)
+            }
+
+            is Statement.For -> {
+                // Create labels for the start of the loop, condition check, update, and end of the loop
+                val startLabel = org.objectweb.asm.Label()
+                val conditionLabel = org.objectweb.asm.Label()
+                val updateLabel = org.objectweb.asm.Label()
+                val endLabel = org.objectweb.asm.Label()
+
+                // Generate code for the initialization if it exists
+                if (stmt.initialization != null) {
+                    updatedNextLocalIndex = generateStatement(stmt.initialization, mv, varIndexMap, updatedNextLocalIndex)
+                }
+
+                // Jump to the condition check
+                mv.visitJumpInsn(Opcodes.GOTO, conditionLabel)
+
+                // Start of the loop body
+                mv.visitLabel(startLabel)
+
+                // Generate code for the loop body
+                for (bodyStmt in stmt.body) {
+                    updatedNextLocalIndex = generateStatement(bodyStmt, mv, varIndexMap, updatedNextLocalIndex)
+                }
+
+                // Update
+                mv.visitLabel(updateLabel)
+
+                // Generate code for the update if it exists
+                if (stmt.update != null) {
+                    updatedNextLocalIndex = generateStatement(stmt.update, mv, varIndexMap, updatedNextLocalIndex)
+                }
+
+                // Condition check
+                mv.visitLabel(conditionLabel)
+
+                // Generate code for the condition
+                generateExpression(stmt.condition, mv, varIndexMap)
+
+                // If condition is true (1), jump to the start of the loop
+                mv.visitJumpInsn(Opcodes.IFNE, startLabel)
+
+                // End of the loop
+                mv.visitLabel(endLabel)
+            }
+        }
+
+        return updatedNextLocalIndex
     }
 
     /**
@@ -357,6 +489,96 @@ class CodeGenerator {
                 // XOR with 1 to negate (0 becomes 1, 1 becomes 0)
                 mv.visitLdcInsn(1)
                 mv.visitInsn(Opcodes.IXOR)
+            }
+            is Expression.Equal -> {
+                // Generate code for left and right operands
+                generateExpression(expr.left, mv, varIndexMap)
+                generateExpression(expr.right, mv, varIndexMap)
+
+                // Compare for equality (result is 0 if equal, 1 if not equal)
+                val label1 = org.objectweb.asm.Label()
+                val label2 = org.objectweb.asm.Label()
+                mv.visitJumpInsn(Opcodes.IF_ICMPEQ, label1)
+                mv.visitLdcInsn(0) // Not equal, push 0 (false)
+                mv.visitJumpInsn(Opcodes.GOTO, label2)
+                mv.visitLabel(label1)
+                mv.visitLdcInsn(1) // Equal, push 1 (true)
+                mv.visitLabel(label2)
+            }
+            is Expression.NotEqual -> {
+                // Generate code for left and right operands
+                generateExpression(expr.left, mv, varIndexMap)
+                generateExpression(expr.right, mv, varIndexMap)
+
+                // Compare for inequality (result is 1 if not equal, 0 if equal)
+                val label1 = org.objectweb.asm.Label()
+                val label2 = org.objectweb.asm.Label()
+                mv.visitJumpInsn(Opcodes.IF_ICMPNE, label1)
+                mv.visitLdcInsn(0) // Equal, push 0 (false)
+                mv.visitJumpInsn(Opcodes.GOTO, label2)
+                mv.visitLabel(label1)
+                mv.visitLdcInsn(1) // Not equal, push 1 (true)
+                mv.visitLabel(label2)
+            }
+            is Expression.LessThan -> {
+                // Generate code for left and right operands
+                generateExpression(expr.left, mv, varIndexMap)
+                generateExpression(expr.right, mv, varIndexMap)
+
+                // Compare for less than (result is 1 if less than, 0 if not)
+                val label1 = org.objectweb.asm.Label()
+                val label2 = org.objectweb.asm.Label()
+                mv.visitJumpInsn(Opcodes.IF_ICMPLT, label1)
+                mv.visitLdcInsn(0) // Not less than, push 0 (false)
+                mv.visitJumpInsn(Opcodes.GOTO, label2)
+                mv.visitLabel(label1)
+                mv.visitLdcInsn(1) // Less than, push 1 (true)
+                mv.visitLabel(label2)
+            }
+            is Expression.GreaterThan -> {
+                // Generate code for left and right operands
+                generateExpression(expr.left, mv, varIndexMap)
+                generateExpression(expr.right, mv, varIndexMap)
+
+                // Compare for greater than (result is 1 if greater than, 0 if not)
+                val label1 = org.objectweb.asm.Label()
+                val label2 = org.objectweb.asm.Label()
+                mv.visitJumpInsn(Opcodes.IF_ICMPGT, label1)
+                mv.visitLdcInsn(0) // Not greater than, push 0 (false)
+                mv.visitJumpInsn(Opcodes.GOTO, label2)
+                mv.visitLabel(label1)
+                mv.visitLdcInsn(1) // Greater than, push 1 (true)
+                mv.visitLabel(label2)
+            }
+            is Expression.LessEqual -> {
+                // Generate code for left and right operands
+                generateExpression(expr.left, mv, varIndexMap)
+                generateExpression(expr.right, mv, varIndexMap)
+
+                // Compare for less than or equal (result is 1 if less than or equal, 0 if not)
+                val label1 = org.objectweb.asm.Label()
+                val label2 = org.objectweb.asm.Label()
+                mv.visitJumpInsn(Opcodes.IF_ICMPLE, label1)
+                mv.visitLdcInsn(0) // Not less than or equal, push 0 (false)
+                mv.visitJumpInsn(Opcodes.GOTO, label2)
+                mv.visitLabel(label1)
+                mv.visitLdcInsn(1) // Less than or equal, push 1 (true)
+                mv.visitLabel(label2)
+            }
+            is Expression.GreaterEqual -> {
+                // Generate code for left and right operands
+                generateExpression(expr.left, mv, varIndexMap)
+                generateExpression(expr.right, mv, varIndexMap)
+
+                // Compare for greater than or equal (result is 1 if greater than or equal, 0 if not)
+                val label1 = org.objectweb.asm.Label()
+                val label2 = org.objectweb.asm.Label()
+                mv.visitJumpInsn(Opcodes.IF_ICMPGE, label1)
+                mv.visitLdcInsn(0) // Not greater than or equal, push 0 (false)
+                mv.visitJumpInsn(Opcodes.GOTO, label2)
+                mv.visitLabel(label1)
+                mv.visitLdcInsn(1) // Greater than or equal, push 1 (true)
+                mv.visitLabel(label2)
             }
             is Expression.List -> {
                 // Create a new ArrayList

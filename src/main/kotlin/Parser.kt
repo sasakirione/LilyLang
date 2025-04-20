@@ -37,12 +37,115 @@ class Parser(private val tokens: List<Token>, private val errorReporter: ErrorRe
             TokenType.VAR -> parseVarDeclaration()
             TokenType.PRINT -> parsePrintStatement()
             TokenType.IDENTIFIER -> parseAssignment()
+            TokenType.IF -> parseIfStatement()
+            TokenType.WHILE -> parseWhileStatement()
+            TokenType.FOR -> parseForStatement()
             else -> {
                 errorReporter?.reportSyntaxError("Unexpected token: ${token.value}", token.line, token.column)
                 // Return a dummy statement to allow parsing to continue
                 Statement.Print(Expression.IntLiteral(0))
             }
         }
+    }
+
+    /**
+     * Parse a block of statements enclosed in braces
+     *
+     * @return List of statements in the block
+     */
+    private fun parseBlock(): List<Statement> {
+        val statements = mutableListOf<Statement>()
+
+        // Expect an opening brace
+        consume(TokenType.LEFT_BRACE, "Expected '{' at the start of a block")
+
+        // Parse statements until we reach a closing brace or the end of the file
+        while (!isAtEnd() && peek().type != TokenType.RIGHT_BRACE) {
+            statements.add(parseStatement())
+        }
+
+        // Expect a closing brace
+        consume(TokenType.RIGHT_BRACE, "Expected '}' at the end of a block")
+
+        return statements
+    }
+
+    /**
+     * Parse an if statement
+     *
+     * @return If statement
+     */
+    private fun parseIfStatement(): Statement {
+        // Consume 'if' token
+        advance()
+
+        // Parse condition
+        val condition = parseExpression()
+
+        // Parse then branch
+        val thenBranch = parseBlock()
+
+        // Check for else branch
+        var elseBranch: List<Statement>? = null
+        if (peek().type == TokenType.ELSE) {
+            advance() // Consume 'else' token
+            elseBranch = parseBlock()
+        }
+
+        return Statement.If(condition, thenBranch, elseBranch)
+    }
+
+    /**
+     * Parse a while statement
+     *
+     * @return While statement
+     */
+    private fun parseWhileStatement(): Statement {
+        // Consume 'while' token
+        advance()
+
+        // Parse condition
+        val condition = parseExpression()
+
+        // Parse body
+        val body = parseBlock()
+
+        return Statement.While(condition, body)
+    }
+
+    /**
+     * Parse a for statement
+     *
+     * @return For statement
+     */
+    private fun parseForStatement(): Statement {
+        // Consume 'for' token
+        advance()
+
+        // Parse initialization (optional)
+        var initialization: Statement? = null
+        if (peek().type != TokenType.SEMICOLON) {
+            initialization = parseStatement()
+        } else {
+            advance() // Consume ';'
+        }
+
+        // Parse condition
+        val condition = parseExpression()
+
+        // Expect a semicolon
+        consume(TokenType.SEMICOLON, "Expected ';' after for loop condition")
+
+        // Parse update (optional)
+        var update: Statement? = null
+        if (peek().type != TokenType.LEFT_BRACE) {
+            update = parseStatement()
+        }
+
+        // Parse body
+        val body = parseBlock()
+
+        return Statement.For(initialization, condition, update, body)
     }
 
     /**
@@ -114,15 +217,43 @@ class Parser(private val tokens: List<Token>, private val errorReporter: ErrorRe
      * @return Expression AST node
      */
     private fun parseLogical(): Expression {
-        var left = parseAdditive()
+        var left = parseComparison()
 
         while (match(TokenType.AND) || match(TokenType.OR)) {
             val operator = previous().type
-            val right = parseAdditive()
+            val right = parseComparison()
 
             left = when (operator) {
                 TokenType.AND -> Expression.And(left, right)
                 TokenType.OR -> Expression.Or(left, right)
+                else -> throw RuntimeException("Unexpected operator: ${previous().value}")
+            }
+        }
+
+        return left
+    }
+
+    /**
+     * Parse a comparison expression (expr == expr, expr != expr, expr < expr, etc.)
+     *
+     * @return Expression AST node
+     */
+    private fun parseComparison(): Expression {
+        var left = parseAdditive()
+
+        while (match(TokenType.EQUALS_EQUALS) || match(TokenType.NOT_EQUALS) || 
+               match(TokenType.LESS_THAN) || match(TokenType.GREATER_THAN) ||
+               match(TokenType.LESS_EQUALS) || match(TokenType.GREATER_EQUALS)) {
+            val operator = previous().type
+            val right = parseAdditive()
+
+            left = when (operator) {
+                TokenType.EQUALS_EQUALS -> Expression.Equal(left, right)
+                TokenType.NOT_EQUALS -> Expression.NotEqual(left, right)
+                TokenType.LESS_THAN -> Expression.LessThan(left, right)
+                TokenType.GREATER_THAN -> Expression.GreaterThan(left, right)
+                TokenType.LESS_EQUALS -> Expression.LessEqual(left, right)
+                TokenType.GREATER_EQUALS -> Expression.GreaterEqual(left, right)
                 else -> throw RuntimeException("Unexpected operator: ${previous().value}")
             }
         }

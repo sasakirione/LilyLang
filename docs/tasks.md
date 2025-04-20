@@ -26,9 +26,9 @@ This document contains a comprehensive list of actionable improvement tasks for 
 
 [x] Add support for boolean data types and logical operations (AND, OR, NOT)
 
-[ ] Implement string data type and string operations
+[x] Implement string data type and string operations
 
-[ ] Add control flow structures:
+[x] Add control flow structures:
    - If/else statements
    - While loops
    - For loops
