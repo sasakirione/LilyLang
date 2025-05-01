@@ -36,12 +36,31 @@ class Parser(private val tokens: List<Token>, private val errorReporter: ErrorRe
             TokenType.WHILE -> parseWhileStatement()
             TokenType.FOR -> parseForStatement()
             TokenType.FUN -> parseFunctionDeclaration()
+            TokenType.CLASS -> parseClassDeclaration()
             else -> {
                 errorReporter?.reportSyntaxError("Unexpected token: ${token.value}", token.line, token.column)
                 // Return a fake statement to allow parsing to continue
                 Statement.Print(Expression.IntLiteral(0))
             }
         }
+    }
+
+    /**
+     * Parse a class declaration
+     *
+     * @return ClassDecl statement
+     */
+    private fun parseClassDeclaration(): Statement {
+        // Consume 'class' token
+        advance()
+
+        // The Next token should be an identifier (class name)
+        val className = consume(TokenType.IDENTIFIER, "Expected class name after 'class'").value
+
+        // Parse class body
+        val members = parseBlock()
+
+        return Statement.ClassDecl(className, members)
     }
 
     /**
@@ -221,21 +240,50 @@ class Parser(private val tokens: List<Token>, private val errorReporter: ErrorRe
     }
 
     /**
-     * Parse a variable assignment statement (x = expr)
+     * Parse a variable assignment statement (x = expr) or a member assignment statement (obj.member = expr)
      *
-     * @return VarAssign statement
+     * @return VarAssign or MemberAssign statement
      */
     private fun parseAssignment(): Statement {
         // Get the variable name
-        val varName = consume(TokenType.IDENTIFIER, "Expected variable name").value
+        val varNameToken = consume(TokenType.IDENTIFIER, "Expected variable name")
+        val varName = varNameToken.value
 
-        // The Next token should be '='
-        consume(TokenType.EQUALS, "Expected '=' after variable name")
+        // Check if this is a member assignment
+        if (peek().type == TokenType.DOT) {
+            // This is a member assignment
 
-        // Parse the expression after '='
-        val expr = parseExpression()
+            // Create a variable reference for the object
+            val obj = Expression.VariableRef(varName)
 
-        return Statement.VarAssign(varName, expr)
+            // Parse the member access
+            val memberAccess = parseMemberAccess(obj)
+
+            // The memberAccess should be a MemberAccess expression
+            if (memberAccess !is Expression.MemberAccess) {
+                errorReporter?.reportSyntaxError("Expected member access in assignment", varNameToken.line, varNameToken.column)
+                // Return a fake statement to allow parsing to continue
+                return Statement.Print(Expression.IntLiteral(0))
+            }
+
+            // The Next token should be '='
+            consume(TokenType.EQUALS, "Expected '=' after member access")
+
+            // Parse the expression after '='
+            val expr = parseExpression()
+
+            return Statement.MemberAssign(memberAccess.obj, memberAccess.member, expr)
+        } else {
+            // This is a variable assignment
+
+            // The Next token should be '='
+            consume(TokenType.EQUALS, "Expected '=' after variable name")
+
+            // Parse the expression after '='
+            val expr = parseExpression()
+
+            return Statement.VarAssign(varName, expr)
+        }
     }
 
     /**
@@ -343,14 +391,14 @@ class Parser(private val tokens: List<Token>, private val errorReporter: ErrorRe
     }
 
     /**
-     * Parse a primary expression (literal, variable reference, or list)
+     * Parse a primary expression (literal, variable reference, list, or class instantiation)
      *
      * @return Expression AST node
      */
     private fun parsePrimary(): Expression {
         val token = peek()
 
-        return when (token.type) {
+        var expr = when (token.type) {
             TokenType.INT_LITERAL -> {
                 advance()
                 Expression.IntLiteral(token.value.toInt())
@@ -398,6 +446,36 @@ class Parser(private val tokens: List<Token>, private val errorReporter: ErrorRe
                     Expression.VariableRef(token.value)
                 }
             }
+            TokenType.NEW -> {
+                // Consume 'new' token
+                advance()
+
+                // The Next token should be an identifier (class name)
+                val className = consume(TokenType.IDENTIFIER, "Expected class name after 'new'").value
+
+                // Consume the '('
+                consume(TokenType.LEFT_PAREN, "Expected '(' after class name")
+
+                // Parse arguments
+                val arguments = mutableListOf<Expression>()
+                if (peek().type != TokenType.RIGHT_PAREN) {
+                    do {
+                        arguments.add(parseExpression())
+
+                        if (peek().type != TokenType.COMMA) {
+                            break
+                        }
+
+                        // Consume the comma
+                        advance()
+                    } while (true)
+                }
+
+                // Expect closing parenthesis
+                consume(TokenType.RIGHT_PAREN, "Expected ')' after constructor arguments")
+
+                Expression.ClassInstantiation(className, arguments)
+            }
             TokenType.LIST -> {
                 advance()
                 Expression.List("Object")
@@ -412,6 +490,58 @@ class Parser(private val tokens: List<Token>, private val errorReporter: ErrorRe
                 // Return a fake expression to allow parsing to continue
                 Expression.IntLiteral(0)
             }
+        }
+
+        // Check for member access or method call
+        while (peek().type == TokenType.DOT) {
+            expr = parseMemberAccess(expr)
+        }
+
+        return expr
+    }
+
+    /**
+     * Parse a member access or method call
+     *
+     * @param obj The object expression
+     * @return Expression AST node
+     */
+    private fun parseMemberAccess(obj: Expression): Expression {
+        // Consume the '.' token
+        advance()
+
+        // The next token should be an identifier (member name)
+        val memberName = consume(TokenType.IDENTIFIER, "Expected member name after '.'").value
+
+        // Check if this is a method call
+        if (peek().type == TokenType.LEFT_PAREN) {
+            // This is a method call
+
+            // Consume the '('
+            advance()
+
+            // Parse arguments
+            val arguments = mutableListOf<Expression>()
+            if (peek().type != TokenType.RIGHT_PAREN) {
+                do {
+                    arguments.add(parseExpression())
+
+                    if (peek().type != TokenType.COMMA) {
+                        break
+                    }
+
+                    // Consume the comma
+                    advance()
+                } while (true)
+            }
+
+            // Expect closing parenthesis
+            consume(TokenType.RIGHT_PAREN, "Expected ')' after method arguments")
+
+            return Expression.MethodCall(obj, memberName, arguments)
+        } else {
+            // This is a member access
+            return Expression.MemberAccess(obj, memberName)
         }
     }
 

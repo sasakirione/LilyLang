@@ -50,6 +50,45 @@ class SemanticAnalyzer(private val errorReporter: ErrorReporter? = null) {
                 // Exit the function scope
                 symbolTable.exitScope()
             }
+            is Statement.ClassDecl -> {
+                // Check if class is already declared
+                if (symbolTable.isClassDeclared(statement.name)) {
+                    errorReporter?.reportSemanticError("Class '${statement.name}' is already declared", 0, 0)
+                    return
+                }
+
+                // Declare the class in the symbol table
+                val classSymbol = symbolTable.declareClass(statement.name, 0, 0)
+
+                // Enter a new scope for the class body
+                symbolTable.enterScope()
+
+                // Analyze the class members
+                for (member in statement.members) {
+                    when (member) {
+                        is Statement.VarDecl -> {
+                            // Analyze the expression
+                            val exprType = analyzeExpression(member.expr)
+
+                            // Declare the member in the class
+                            classSymbol.declareMember(member.varName, exprType, 0, 0)
+                        }
+                        is Statement.FunctionDecl -> {
+                            // For simplicity, all methods are treated as returning int
+                            classSymbol.declareMember(member.name, "method", 0, 0)
+
+                            // Analyze the method body
+                            analyzeStatement(member)
+                        }
+                        else -> {
+                            errorReporter?.reportSemanticError("Invalid class member: ${member.javaClass.simpleName}", 0, 0)
+                        }
+                    }
+                }
+
+                // Exit the class scope
+                symbolTable.exitScope()
+            }
             is Statement.VarDecl -> {
                 // Check if variable is already declared
                 if (symbolTable.lookup(statement.varName) != null) {
@@ -79,6 +118,52 @@ class SemanticAnalyzer(private val errorReporter: ErrorReporter? = null) {
                 // Check type compatibility (simple check for now)
                 if (exprType != varType && varType != "Object") {
                     errorReporter?.reportSemanticError("Cannot assign ${exprType} to variable '${statement.varName}' of type ${varType}", 0, 0)
+                    return
+                }
+            }
+
+            is Statement.MemberAccess -> {
+                // Analyze the object expression
+                val objType = analyzeExpression(statement.obj)
+
+                // Check if the object is a class instance
+                if (!symbolTable.isClassDeclared(objType)) {
+                    errorReporter?.reportSemanticError("Cannot access member '${statement.member}' of non-class type '${objType}'", 0, 0)
+                    return
+                }
+
+                // Check if the member exists in the class
+                val classSymbol = symbolTable.lookupClass(objType)
+                if (classSymbol == null || !classSymbol.isMemberDeclared(statement.member)) {
+                    errorReporter?.reportSemanticError("Member '${statement.member}' does not exist in class '${objType}'", 0, 0)
+                    return
+                }
+            }
+
+            is Statement.MemberAssign -> {
+                // Analyze the object expression
+                val objType = analyzeExpression(statement.obj)
+
+                // Check if the object is a class instance
+                if (!symbolTable.isClassDeclared(objType)) {
+                    errorReporter?.reportSemanticError("Cannot assign to member '${statement.member}' of non-class type '${objType}'", 0, 0)
+                    return
+                }
+
+                // Check if the member exists in the class
+                val classSymbol = symbolTable.lookupClass(objType)
+                if (classSymbol == null || !classSymbol.isMemberDeclared(statement.member)) {
+                    errorReporter?.reportSemanticError("Member '${statement.member}' does not exist in class '${objType}'", 0, 0)
+                    return
+                }
+
+                // Analyze the expression
+                val exprType = analyzeExpression(statement.expr)
+
+                // Check type compatibility (simple check for now)
+                val memberSymbol = classSymbol.lookupMember(statement.member)
+                if (memberSymbol != null && exprType != memberSymbol.type && memberSymbol.type != "Object") {
+                    errorReporter?.reportSemanticError("Cannot assign ${exprType} to member '${statement.member}' of type ${memberSymbol.type}", 0, 0)
                     return
                 }
             }
@@ -196,6 +281,72 @@ class SemanticAnalyzer(private val errorReporter: ErrorReporter? = null) {
 
                 // Return the variable's type
                 return symbol.type
+            }
+
+            is Expression.ClassInstantiation -> {
+                // Check if the class is declared
+                if (!symbolTable.isClassDeclared(expression.className)) {
+                    errorReporter?.reportSemanticError("Class '${expression.className}' is not declared", 0, 0)
+                    return "error"
+                }
+
+                // Analyze all arguments
+                for (arg in expression.args) {
+                    analyzeExpression(arg)
+                    // For simplicity, we won't check argument types
+                }
+
+                // Return the class name as the type
+                return expression.className
+            }
+
+            is Expression.MemberAccess -> {
+                // Analyze the object expression
+                val objType = analyzeExpression(expression.obj)
+
+                // Check if the object is a class instance
+                if (!symbolTable.isClassDeclared(objType)) {
+                    errorReporter?.reportSemanticError("Cannot access member '${expression.member}' of non-class type '${objType}'", 0, 0)
+                    return "error"
+                }
+
+                // Check if the member exists in the class
+                val classSymbol = symbolTable.lookupClass(objType)
+                if (classSymbol == null || !classSymbol.isMemberDeclared(expression.member)) {
+                    errorReporter?.reportSemanticError("Member '${expression.member}' does not exist in class '${objType}'", 0, 0)
+                    return "error"
+                }
+
+                // Return the member's type
+                val memberSymbol = classSymbol.lookupMember(expression.member)
+                return memberSymbol?.type ?: "error"
+            }
+
+            is Expression.MethodCall -> {
+                // Analyze the object expression
+                val objType = analyzeExpression(expression.obj)
+
+                // Check if the object is a class instance
+                if (!symbolTable.isClassDeclared(objType)) {
+                    errorReporter?.reportSemanticError("Cannot call method '${expression.method}' on non-class type '${objType}'", 0, 0)
+                    return "error"
+                }
+
+                // Check if the method exists in the class
+                val classSymbol = symbolTable.lookupClass(objType)
+                if (classSymbol == null || !classSymbol.isMemberDeclared(expression.method)) {
+                    errorReporter?.reportSemanticError("Method '${expression.method}' does not exist in class '${objType}'", 0, 0)
+                    return "error"
+                }
+
+                // Analyze all arguments
+                for (arg in expression.args) {
+                    analyzeExpression(arg)
+                    // For simplicity, we won't check argument types
+                }
+
+                // For simplicity, we'll assume all methods return int
+                return "int"
             }
 
             is Expression.Add -> {

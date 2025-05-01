@@ -11,7 +11,7 @@ data class Program(
 
 /**
  * 文の種類。
- * 変数定義、変数再代入、標準出力、制御構造（if/else, while, for）、関数定義
+ * 変数定義、変数再代入、標準出力、制御構造（if/else, while, for）、関数定義、クラス定義
  */
 sealed class Statement {
     /**
@@ -78,6 +78,38 @@ sealed class Statement {
         val body: List<Statement>,
         val returnType: String? = null
     ) : Statement()
+
+    /**
+     * クラス定義
+     * name: クラス名
+     * members: メンバー変数と関数のリスト
+     */
+    data class ClassDecl(
+        val name: String,
+        val members: List<Statement>
+    ) : Statement()
+
+    /**
+     * メンバー変数アクセス
+     * object: オブジェクト式
+     * member: メンバー名
+     */
+    data class MemberAccess(
+        val obj: Expression,
+        val member: String
+    ) : Statement()
+
+    /**
+     * メンバー変数代入
+     * object: オブジェクト式
+     * member: メンバー名
+     * expr: 代入する式
+     */
+    data class MemberAssign(
+        val obj: Expression,
+        val member: String,
+        val expr: Expression
+    ) : Statement()
 }
 
 /**
@@ -89,6 +121,9 @@ sealed class Statement {
  * - 論理演算 (AND, OR, NOT)
  * - 比較演算 (==, !=, <, >, <=, >=)
  * - 関数呼び出し
+ * - クラスインスタンス生成
+ * - メンバー変数アクセス
+ * - メソッド呼び出し
  */
 sealed class Expression {
     /**
@@ -192,6 +227,28 @@ sealed class Expression {
      * args: 引数のリスト
      */
     data class FunctionCall(val name: String, val args: kotlin.collections.List<Expression>): Expression()
+
+    /**
+     * クラスインスタンス生成
+     * className: クラス名
+     * args: コンストラクタ引数のリスト
+     */
+    data class ClassInstantiation(val className: String, val args: kotlin.collections.List<Expression>): Expression()
+
+    /**
+     * メンバー変数アクセス
+     * obj: オブジェクト式
+     * member: メンバー名
+     */
+    data class MemberAccess(val obj: Expression, val member: String): Expression()
+
+    /**
+     * メソッド呼び出し
+     * obj: オブジェクト式
+     * method: メソッド名
+     * args: 引数のリスト
+     */
+    data class MethodCall(val obj: Expression, val method: String, val args: kotlin.collections.List<Expression>): Expression()
 }
 
 object Keywords {
@@ -215,6 +272,11 @@ object Keywords {
 
     // Function keyword
     const val FUN = "fun"
+
+    // Class keywords
+    const val CLASS = "class"
+    const val NEW = "new"
+    const val DOT = '.'
 
     // Comparison operators
     const val EQUALS_EQUALS = "=="

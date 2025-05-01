@@ -1,0 +1,27 @@
+// Define a Person class
+class Person {
+    var name = "Unknown";
+    var age = 0;
+    
+    fun setName(newName) {
+        name = newName;
+    }
+    
+    fun setAge(newAge) {
+        age = newAge;
+    }
+    
+    fun introduce() {
+        print "Hello, my name is " + name + " and I am " + age + " years old.";
+    }
+}
+
+// Create a Person instance
+var person = new Person();
+
+// Set properties
+person.setName("John");
+person.setAge(30);
+
+// Call a method
+person.introduce();

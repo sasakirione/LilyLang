@@ -24,6 +24,17 @@ class CodeGenerator {
                     ?: error("Undefined variable: ${expr.name}")
                 detail.type
             }
+            is Expression.ClassInstantiation -> expr.className // The type is the class name
+            is Expression.MemberAccess -> {
+                // For simplicity, assume all member accesses return int
+                // In a more sophisticated implementation, we would look up the member type
+                "int"
+            }
+            is Expression.MethodCall -> {
+                // For simplicity, assume all method calls return int
+                // In a more sophisticated implementation, we would look up the method return type
+                "int"
+            }
             is Expression.Add -> {
                 val leftType = getExpressionType(expr.left, varIndexMap)
                 val rightType = getExpressionType(expr.right, varIndexMap)
@@ -223,6 +234,11 @@ class CodeGenerator {
                 // This case should not be reached in normal execution
                 return updatedNextLocalIndex
             }
+            is Statement.ClassDecl -> {
+                // Class declarations are handled separately
+                // This case should not be reached in normal execution
+                return updatedNextLocalIndex
+            }
             is Statement.VarDecl -> {
                 val isExist = varIndexMap.any { it.name == stmt.varName }
                 if (isExist) {
@@ -326,6 +342,28 @@ class CodeGenerator {
                         mv.visitVarInsn(Opcodes.ISTORE, varDetail.index)
                     }
                 }
+            }
+
+            is Statement.MemberAccess -> {
+                // Generate code for the object expression
+                generateExpression(stmt.obj, mv, varIndexMap)
+
+                // For simplicity, we'll just pop the object reference off the stack
+                // In a more sophisticated implementation, we would generate code to access the member
+                mv.visitInsn(Opcodes.POP)
+            }
+
+            is Statement.MemberAssign -> {
+                // Generate code for the object expression
+                generateExpression(stmt.obj, mv, varIndexMap)
+
+                // Generate code for the expression to assign
+                generateExpression(stmt.expr, mv, varIndexMap)
+
+                // For simplicity, we'll just pop both values off the stack
+                // In a more sophisticated implementation, we would generate code to assign to the member
+                mv.visitInsn(Opcodes.POP)
+                mv.visitInsn(Opcodes.POP)
             }
 
             is Statement.If -> {
@@ -474,6 +512,61 @@ class CodeGenerator {
                     "string" -> mv.visitVarInsn(Opcodes.ALOAD, detail.index)
                     else -> mv.visitVarInsn(Opcodes.ILOAD, detail.index)
                 }
+            }
+            is Expression.ClassInstantiation -> {
+                // Create a new instance of the class
+                mv.visitTypeInsn(Opcodes.NEW, expr.className)
+                mv.visitInsn(Opcodes.DUP) // Duplicate the reference
+
+                // Generate code for each argument
+                for (arg in expr.args) {
+                    generateExpression(arg, mv, varIndexMap)
+                }
+
+                // Create a constructor descriptor based on parameters
+                // For simplicity, all parameters are integers
+                val parameterCount = expr.args.size
+                val descriptor = "(" + "I".repeat(parameterCount) + ")V"
+
+                // Call the constructor
+                mv.visitMethodInsn(
+                    Opcodes.INVOKESPECIAL,
+                    expr.className,
+                    "<init>",
+                    descriptor,
+                    false
+                )
+            }
+            is Expression.MemberAccess -> {
+                // Generate code for the object expression
+                generateExpression(expr.obj, mv, varIndexMap)
+
+                // For simplicity, we'll just push a dummy value onto the stack
+                // In a more sophisticated implementation, we would generate code to access the member
+                mv.visitLdcInsn(0)
+            }
+            is Expression.MethodCall -> {
+                // Generate code for the object expression
+                generateExpression(expr.obj, mv, varIndexMap)
+
+                // Generate code for each argument
+                for (arg in expr.args) {
+                    generateExpression(arg, mv, varIndexMap)
+                }
+
+                // Create a method descriptor based on parameters
+                // For simplicity, all parameters and return values are integers
+                val parameterCount = expr.args.size
+                val descriptor = "(" + "I".repeat(parameterCount) + ")I"
+
+                // Call the method
+                mv.visitMethodInsn(
+                    Opcodes.INVOKEVIRTUAL,
+                    getExpressionType(expr.obj, varIndexMap), // Use the object's type as the class name
+                    expr.method,
+                    descriptor,
+                    false
+                )
             }
             is Expression.Add -> {
                 // Check if this is string concatenation

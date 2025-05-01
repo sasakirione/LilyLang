@@ -11,6 +11,8 @@ sealed class TokenType {
     object WHILE : TokenType()
     object FOR : TokenType()
     object FUN : TokenType()
+    object CLASS : TokenType()
+    object NEW : TokenType()
 
     // Operators
     object PLUS : TokenType()
@@ -25,6 +27,7 @@ sealed class TokenType {
     object GREATER_THAN : TokenType()
     object LESS_EQUALS : TokenType()
     object GREATER_EQUALS : TokenType()
+    object DOT : TokenType()
 
     // Logical operators
     object AND : TokenType()
@@ -95,6 +98,7 @@ class Lexer(private val source: String, private val errorReporter: ErrorReporter
                 char == Keywords.MUL -> addToken(TokenType.MUL, "*")
                 char == Keywords.DIV -> addToken(TokenType.DIV, "/")
                 char == Keywords.MOD -> addToken(TokenType.MOD, "%")
+                char == Keywords.DOT -> addToken(TokenType.DOT, ".")
                 char == Keywords.EQUALS -> {
                     // Check for == (equals)
                     if (position + 1 < source.length && source[position + 1] == Keywords.EQUALS) {
@@ -194,6 +198,8 @@ class Lexer(private val source: String, private val errorReporter: ErrorReporter
             Keywords.WHILE -> TokenType.WHILE
             Keywords.FOR -> TokenType.FOR
             Keywords.FUN -> TokenType.FUN
+            Keywords.CLASS -> TokenType.CLASS
+            Keywords.NEW -> TokenType.NEW
             Keywords.TRUE -> TokenType.BOOLEAN_LITERAL
             Keywords.FALSE -> TokenType.BOOLEAN_LITERAL
             Keywords.AND -> TokenType.AND

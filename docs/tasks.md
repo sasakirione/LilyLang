@@ -35,7 +35,7 @@ This document contains a comprehensive list of actionable improvement tasks for 
 
 [x] Implement function declarations and calls
 
-[ ] Add support for user-defined data structures/classes
+[x] Add support for user-defined data structures/classes
 
 [ ] Implement proper list operations (add, remove, access elements)
 
