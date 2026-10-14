@@ -11,8 +11,8 @@ repositories {
 
 dependencies {
     testImplementation(kotlin("test"))
-    implementation("org.ow2.asm:asm:9.10.1")
-    implementation("org.ow2.asm:asm-commons:9.10.1")
+    implementation("org.ow2.asm:asm:9.11")
+    implementation("org.ow2.asm:asm-commons:9.11")
 }
 
 tasks.test {
